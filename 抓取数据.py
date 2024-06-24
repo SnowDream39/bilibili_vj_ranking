@@ -7,12 +7,15 @@ import time
 songs = pd.read_excel('收录曲目.xlsx')
 info_list = []
 error_list = []
+data_list= []
 
 async def get_song_stat(i):
     global info_list
     title = songs.at[i, 'Title']
     bvid = songs.at[i, 'BVID']
-     
+    video_title = songs.at[i, 'Video Title']
+    pubdate = songs.at[i, 'Pubdate']
+    
     v = video.Video(bvid=bvid)
     info = await v.get_info()  
     stat_data = info.get('stat')  # 提取stat字段的数据  
@@ -24,13 +27,13 @@ async def get_song_stat(i):
         like = stat_data.get('like')  # 点赞数
         reply = stat_data.get('reply')
         danmaku = stat_data.get('danmaku')
-            
+        
         # 其他你可能需要的字段，如danmaku, reply等  
         print(title, view)
         
         # 确保所有值都存在，否则跳过该视频  
-        info_list.append([bvid, title, view, danmaku, reply, favorite, coin, share, like])  
-
+        info_list.append([bvid, title, pubdate, view, danmaku, reply, favorite, coin, share, like])  
+        data_list.append([title, bvid, video_title, view, pubdate])
 
 async def main() -> None:  
     for i in songs.index:
@@ -53,10 +56,16 @@ async def main() -> None:
   
     # 将列表转换为Pandas DataFrame并保存为Excel文件  
     if info_list:  # 确保info_list不为空  
-        stock_list = pd.DataFrame(info_list, columns=['bvid', 'title', 'view', 'danmaku', 'reply', 'favorite', 'coin', 'share', 'like'])  
+        stock_list = pd.DataFrame(info_list, columns=['bvid', 'title', 'pubdate', 'view', 'danmaku', 'reply', 'favorite', 'coin', 'share', 'like'])  
         filename = "数据/" + datetime.now().strftime("%Y%m%d%H%M%S") + ".xlsx"  
         stock_list.to_excel(filename, index=False)  
         print("处理完成，数据已保存到", filename)  
+        
+    if data_list:
+        stock_list = pd.DataFrame(data_list, columns=['Title', 'BVID', 'Video Title', 'View', 'Pubdate'])
+        stock_list = stock_list.sort_values(by='View', ascending=False)
+        stock_list.to_excel('收录曲目.xlsx', index=False)
+        print("收录曲目已更新并按观看数排序")
     else:  
         print("没有可用的视频信息，未保存数据")  
   
