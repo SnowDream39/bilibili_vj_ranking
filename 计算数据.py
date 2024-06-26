@@ -1,10 +1,11 @@
 import asyncio
 import pandas as pd
-from math import ceil
+from math import ceil, floor
 from datetime import datetime
+from openpyxl import Workbook
 
-old_time = '20240624000503'
-new_time = '20240624120425'
+old_time = '20240625000430'
+new_time = '20240627000400'
 
 async def main() -> None:
     songs = pd.read_excel('收录曲目.xlsx')
@@ -44,24 +45,32 @@ async def main() -> None:
             danmaku  = new['danmaku']  - old['danmaku']
 
             # 添加除零检查并进行0.01级向上取整
-            viewR = 0 if view == 0 else max(ceil(view * (min((coin + favorite + like) * 25 / view, 1) * 100)) / 100, 0)
-            favoriteR = 0 if favorite * 20 + view == 0 else max(ceil(favorite * (min(favorite * 20 / (favorite * 20 + view) * 40, 20)) * 100) / 100, 0)
-            coinR = 0 if coin * 100 == 0 else max(ceil(coin * (min((coin * 100 + view) / (coin * 100) * 10, 40)) * 100) / 100, 0)
-            likeR = 0 if like * 20 + view == 0 else max(ceil(like * (coin + favorite) / (like * 20 + view) * 100 * 100) / 100, 0)
+            viewR = 0 if view == 0 else max(ceil(view * (min(max((coin + favorite + like), 0) * 25 / view, 1) * 100)) / 100, 0)
+            favoriteR = 0 if favorite * 20 + view <= 0 else max(ceil(favorite * (min(max(favorite, 0) * 20 / (favorite * 20 + view) * 40, 20)) * 100) / 100, 0)
+            coinR = 0 if coin == 0 else max(ceil(coin * (min((coin * 100 + view) / (coin * 100) * 10, 40)) * 100) / 100, 0)
+            likeR = 0 if like * 20 + view <= 0 else max(floor(like * max(coin + favorite, 0) / (like * 20 + view) * 100 * 100) / 100, 0)
 
             point = viewR + favoriteR + coinR + likeR
             # 四舍五入到整数
-            info_list.append([bvid, name, pubdate, view, favorite, coin, share, like, round(viewR), round(favoriteR), round(coinR), round(likeR), round(point)])
+            info_list.append([bvid, name, pubdate, view, favorite, coin, like, round(viewR), round(favoriteR), round(coinR), round(likeR), round(point)])
         
         except Exception as e:
             print(f"Error fetching info for BVID {bvid}: {e}")
 
     # 将列表转换为Pandas DataFrame并保存为Excel文件
     if info_list:  # 确保info_list不为空
-        stock_list = pd.DataFrame(info_list, columns=['bvid', 'name', 'pubdate', 'view', 'favorite', 'coin', 'share', 'like', 'viewR', 'favoriteR', 'coinR', 'likeR', 'point'])
+        stock_list = pd.DataFrame(info_list, columns=['bvid', 'name', 'pubdate', 'view', 'favorite', 'coin', 'like', 'viewR', 'favoriteR', 'coinR', 'likeR', 'point'])
         stock_list = stock_list.sort_values('point', ascending=False)
+
+        # 保存为Excel文件并自动调整列宽
         filename = f"差异/{new_time}与{old_time}.xlsx"
-        stock_list.to_excel(filename, index=False)
+        writer = pd.ExcelWriter(filename, engine='openpyxl')
+        stock_list.to_excel(writer, index=False, sheet_name='Sheet1')
+        worksheet = writer.sheets['Sheet1']
+        for i, column_cells in enumerate(worksheet.columns):
+            length = max(len(str(cell.value)) for cell in column_cells)
+            worksheet.column_dimensions[worksheet.cell(row=1, column=i+1).column_letter].width = length + 2
+        writer.close() 
         print("处理完成，数据已保存到", filename)
 
 if __name__ == "__main__":
