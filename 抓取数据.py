@@ -1,8 +1,9 @@
-import asyncio  
-import pandas as pd  
-from datetime import datetime  
-from bilibili_api import video  
+import asyncio
+import pandas as pd
+from datetime import datetime
+from bilibili_api import video
 import time
+import 抓取新曲数据
 
 songs = pd.read_excel('收录曲目.xlsx')
 info_list = []
@@ -37,14 +38,14 @@ async def get_song_stat(i):
 
 async def main() -> None:  
     for i in songs.index:
-        time.sleep(0.3)
+        await asyncio.sleep(0.3)  
         try:
             await get_song_stat(i)
         except Exception:
             error_list.append(i)
 
     for i in error_list:
-        time.sleep(0.3)
+        await asyncio.sleep(0.3)  
         try:
             await get_song_stat(i)
             error_list.remove(i)
@@ -69,5 +70,12 @@ async def main() -> None:
     else:  
         print("没有可用的视频信息，未保存数据")  
   
+async def run_other_script():
+    await 抓取新曲数据.main()
+
+async def main_combined():
+    await run_other_script()
+    await main()
+
 if __name__ == "__main__":  
-    asyncio.run(main())
+    asyncio.run(main_combined())
