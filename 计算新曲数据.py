@@ -1,0 +1,95 @@
+#coding:GB2312
+import asyncio
+import pandas as pd
+from math import ceil, floor
+from datetime import datetime
+from openpyxl import Workbook
+
+old_time = '新曲20240630000030'
+new_time = '新曲20240630121104'
+
+async def main() -> None:
+    info_list = []  # 用于存储视频信息的列表
+
+    old_data = pd.read_excel(f'新曲数据/{old_time}.xlsx')
+    new_data = pd.read_excel(f'新曲数据/{new_time}.xlsx')
+
+    for i in new_data.index:
+        bvid = new_data.at[i, "bvid"]
+        pubdate = new_data.at[i, 'pubdate']
+        if not bvid:
+            continue
+        try:
+            new_record = new_data[new_data['bvid'] == bvid]
+            old_record = old_data[old_data['bvid'] == bvid]
+            
+            new = new_record.iloc[0]
+            if old_record.empty:
+                old = {'view': 0, 'favorite': 0, 'coin': 0, 'share': 0, 'like': 0, 'reply': 0, 'danmaku': 0}
+            else:
+                old = old_record.iloc[0]
+
+            title = new['video_title']  # 视频标题
+            name = new['title']  # 通称曲目
+            author = new['author']  # 作者
+            uploader = new['uploader']  # up主
+            hascopyright = 1 if new['copyright'] == 1 else 0  # 是否原创
+            
+            view = new['view'] - old['view']
+            favorite = new['favorite'] - old['favorite']
+            coin = new['coin'] - old['coin']
+            share = new['share'] - old['share']
+            like = new['like'] - old['like']
+            reply = new['reply'] - old['reply']
+            danmaku = new['danmaku'] - old['danmaku']
+
+            # 添加除零检查并进行0.01级向上取整
+            viewR = 0 if view == 0 else max(ceil(min(max((coin + favorite + like), 0) * 25 / view, 1) * 100) / 100, 0)
+            favoriteR = 0 if favorite * 20 + view <= 0 else max(ceil(min(max(favorite, 0) * 20 / (favorite * 20 + view) * 40, 20) * 100) / 100, 0)
+            coinR = 0 if coin == 0 else max(ceil(min((coin * 100 + view) / (coin * 100) * 10, 40) * 100) / 100, 0)
+            likeR = 0 if like * 20 + view <= 0 else max(floor(max(coin + favorite, 0) / (like * 20 + view) * 100 * 100) / 100, 0)
+
+            viewP = view * viewR
+            favoriteP = favorite * favoriteR
+            coinP = coin * coinR
+            likeP = like * likeR
+            point = viewP + favoriteP + coinP + likeP
+            
+            # 强制两位小数输出
+            viewR = f"{viewR:.2f}"
+            favoriteR = f"{favoriteR:.2f}"
+            coinR = f"{coinR:.2f}"
+            likeR = f"{likeR:.2f}"
+
+            # 四舍五入到整数
+            info_list.append([title, bvid, name, author, uploader, hascopyright, pubdate, view, favorite, coin, like, round(viewP), viewR, round(favoriteP), favoriteR, round(coinP), coinR, round(likeP), likeR, round(point)])
+            
+        except Exception as e:
+            print(f"Error fetching info for BVID {bvid}: {e}")
+
+    # 将详细信息列表转换为Pandas DataFrame并计算排名
+    if info_list:  # 确保info_list不为空
+        stock_list = pd.DataFrame(info_list, columns=['title', 'bvid', 'name', 'author', 'uploader', 'copyright', 'pubdate', 'view', 'favorite', 'coin', 'like', 'viewP', 'viewR', 'favoriteP','favoriteR','coinP', 'coinR', 'likeP', 'likeR', 'point'])
+        
+        stock_list = stock_list[stock_list['point'] >= 1000]
+        stock_list = stock_list.sort_values('point', ascending=False)
+
+        # 计算排名
+        stock_list['view_rank'] = stock_list['view'].rank(ascending=False, method='min')
+        stock_list['favorite_rank'] = stock_list['favorite'].rank(ascending=False, method='min')
+        stock_list['coin_rank'] = stock_list['coin'].rank(ascending=False, method='min')
+        stock_list['like_rank'] = stock_list['like'].rank(ascending=False, method='min')
+
+        # 保存详细信息为Excel文件并自动调整列宽
+        filename = f"差异/新曲/{new_time}与{old_time}.xlsx"
+        writer = pd.ExcelWriter(filename, engine='openpyxl')
+        stock_list.to_excel(writer, index=False, sheet_name='Sheet1')
+        worksheet = writer.sheets['Sheet1']
+        for i, column_cells in enumerate(worksheet.columns):
+            length = max(len(str(cell.value)) for cell in column_cells)
+            worksheet.column_dimensions[worksheet.cell(row=1, column=i+1).column_letter].width = length + 2
+        writer.close()  # 关闭写入器对象
+        print("处理完成，详细数据已保存到", filename)
+
+if __name__ == "__main__":
+    asyncio.run(main())

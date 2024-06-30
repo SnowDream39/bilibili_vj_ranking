@@ -4,8 +4,8 @@ from math import ceil, floor
 from datetime import datetime
 from openpyxl import Workbook
 
-old_time = '20240628000347'
-new_time = '20240629000323'
+old_time = '20240630000302'
+new_time = '20240630121343'
 
 async def main() -> None:
     songs = pd.read_excel('收录曲目.xlsx')

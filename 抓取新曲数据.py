@@ -22,7 +22,10 @@ async def get_video_stat(video):
     return {
         'video_title': video['title'],
         'bvid': video['bvid'],
+        'title': video['title'],
+        'author': video['owner']['name'],
         'uploader': video['owner']['name'],
+        'copyright': 1 if video['copyright'] == 1 else 0,
         'pubdate': datetime.fromtimestamp(video['pubdate']).strftime('%Y-%m-%d %H:%M:%S'),
         'view': video['stat']['view'],
         'danmaku': video['stat']['danmaku'],
