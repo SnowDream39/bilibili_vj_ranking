@@ -4,10 +4,10 @@ from math import ceil, floor
 from datetime import datetime
 from openpyxl import Workbook
 
-old_time_data = '20240726000826'
-new_time_data = '20240727000010'
-old_time_new_song = '新曲20240726000653'
-new_time_new_song = '新曲20240727000201'
+old_time_data = '20240805000247'
+new_time_data = '20240806000013'
+old_time_new_song = '新曲20240805000823'
+new_time_new_song = '新曲20240806000829'
 
 def read_data(file_path, columns=None):
     return pd.read_excel(file_path, usecols=columns)
@@ -140,7 +140,7 @@ async def main() -> None:
         asyncio.to_thread(main_processing, 
                           f'数据/{old_time_data}.xlsx', 
                           f'数据/{new_time_data}.xlsx', 
-                          f"差异/{new_time_data}与{old_time_data}.xlsx"),
+                          f"差异/非新曲/{new_time_data}与{old_time_data}.xlsx"),
 
         asyncio.to_thread(main_processing, 
                           f'新曲数据/{old_time_new_song}.xlsx', 

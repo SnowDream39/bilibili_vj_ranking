@@ -9,8 +9,8 @@ from openpyxl.utils import get_column_letter
 from bilibili_api import settings
 
 
-KEYWORDS = ["VOCALOID", "synthesizer v", "SynthV", "CeVIO", "UTAU", "VOICEROID", "VOICEPEAK", "NEUTRINO", 
-            "初音", "重音", "镜音", "flower", "可不", "teto", "miku", "歌爱雪","GUMI","KAITO","IA","结月"]
+KEYWORDS = ["VOCALOID", "synthesizer v", "SynthV", "SV", "CeVIO", "UTAU", "VOICEROID", "VOICEPEAK", "NEUTRINO", 
+            "初音", "重音", "镜音", "flower", "可不", "teto", "miku", "kafu","歌爱雪","GUMI","KAITO","IA","结月","POPY","ROSE","夢ノ結唱", "chinozo","俊达萌"]
 
 class BilibiliScraper:
     def __init__(self, keywords, days=2, max_retries=3, headers_list=None):
@@ -142,7 +142,7 @@ class BilibiliScraper:
                 }
             except Exception as e:
                 print(f"Error fetching details for BVID: {bvid}, attempt {attempt + 1}/{self.max_retries}, Error: {e}")
-                await asyncio.sleep(0.2)
+                await asyncio.sleep(0.8)
 
         return None
 
@@ -152,7 +152,7 @@ class BilibiliScraper:
         async def sem_fetch(bvid):
             async with sem:
                 result = await self.fetch_video_details(bvid)
-                await asyncio.sleep(0.2)
+                await asyncio.sleep(0.8)
                 return result
 
         tasks = [sem_fetch(bvid) for bvid in bvids]

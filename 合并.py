@@ -3,10 +3,10 @@ from openpyxl.styles import Alignment
 from openpyxl.utils import get_column_letter
 
 def main():
-    existed_song1 = '20240727000010'
-    existed_song2 = '20240726000826'
-    new_song1 = '新曲20240727000201'
-    new_song2 = '新曲20240726000653'
+    existed_song1 = '20240806000013'
+    existed_song2 = '20240805000247'
+    new_song1 = '新曲20240806000829'
+    new_song2 = '新曲20240805000823'
     
     combined_df = read_and_combine_sheets(existed_song1, existed_song2, new_song1, new_song2)
     combined_df = calculate_ranks(combined_df)
@@ -24,7 +24,7 @@ def read_and_combine_sheets(existed_song1, existed_song2, new_song1, new_song2):
     existed_song = f'{existed_song1}与{existed_song2}'
     new_song = f'{new_song1}与{new_song2}'
 
-    df1 = pd.read_excel(f'差异/{existed_song}.xlsx')
+    df1 = pd.read_excel(f'差异/非新曲/{existed_song}.xlsx')
     df2 = pd.read_excel(f'差异/新曲/{new_song}.xlsx')
 
     combined_df = pd.concat([df1, df2]).drop_duplicates(subset=['bvid'], keep='last')
