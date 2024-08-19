@@ -10,7 +10,10 @@ from bilibili_api import settings
 
 
 KEYWORDS = ["VOCALOID", "synthesizer v", "SynthV", "SV", "CeVIO", "UTAU", "VOICEROID", "VOICEPEAK", "NEUTRINO", 
-            "初音", "重音", "镜音", "flower", "可不", "teto", "miku", "kafu","歌爱雪","GUMI","KAITO","IA","结月","POPY","ROSE","夢ノ結唱", "chinozo","俊达萌"]
+            "初音", "重音", "镜音", "鏡音", "巡音","luka","MEIKO","flower", "可不", "teto", "miku", "kafu","歌爱雪","GUMI","KAITO","IA","结月","POPY","ROSE","夢ノ結唱", "俊达萌",
+            "chinozo", "ンウヱィ窶っィグゑ齧", "rotbala", "regnore", "青杉折扇", "阿赫official","SYNZI","羊小星","精神安定剤","KitanoNani","妄想Delusions","苏维埃冰棺中的伊利亚",
+            "委蛇原_radio","kttts","珠紫MuRaSaKi","音街ウナ","SenaRinka_Alice","雨喙Beak_In_Rain","星のカケラ","Soraだよ",
+            "ゆりがさきなな","SILVIA____","trance羯","911","等待呢歌","BILI君的音樂工房","折射","唯爱阿萌","牛牛蝎羯","白羽沉","【存在抹消】"]
 
 class BilibiliScraper:
     def __init__(self, keywords, days=2, max_retries=3, headers_list=None):
@@ -125,7 +128,7 @@ class BilibiliScraper:
                 info = await v.get_info()
                 duration_seconds = info['duration']
                 if duration_seconds <= 20:
-                    print(f"Skipping video with duration less than or equal to 20 seconds: {bvid}")
+                    print(f"Skipping video with duration less than 20 seconds: {bvid}")
                     return None
                 pubdate = datetime.fromtimestamp(info['pubdate'])
                 return {
@@ -170,13 +173,14 @@ class BilibiliScraper:
             video['uploader'] = video['author']
             video['synthesizer'] = ""
             video['vocal'] = ""
+            video['type'] =""
 
         return videos
 
     async def save_to_excel(self, videos):
         df = pd.DataFrame(videos)
         df = df.sort_values(by='view', ascending=False)
-        df = df[['video_title', 'bvid', 'title', 'author', 'uploader', 'copyright', 'synthesizer', 'vocal', 'pubdate', 'duration', 'view', 'favorite', 'coin', 'like']]
+        df = df[['video_title', 'bvid', 'title', 'author', 'uploader', 'copyright', 'synthesizer', 'vocal', 'type', 'pubdate', 'duration', 'view', 'favorite', 'coin', 'like']]
         filename = f"新曲数据/新曲{self.now.strftime('%Y%m%d%H%M%S')}.xlsx"
 
         with pd.ExcelWriter(filename, engine='openpyxl') as writer:

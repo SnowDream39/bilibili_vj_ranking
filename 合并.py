@@ -1,16 +1,21 @@
 import pandas as pd
+import os
 from openpyxl.styles import Alignment
 from openpyxl.utils import get_column_letter
+from datetime import datetime, timedelta
 
 def main():
-    existed_song1 = '20240806000013'
-    existed_song2 = '20240805000247'
-    new_song1 = '新曲20240806000829'
-    new_song2 = '新曲20240805000823'
+    existed_song1 = '20240819000524'
+    existed_song2 = '20240818000512'
+    new_song1 = '新曲20240818235358'
+    new_song2 = '新曲20240817235408'
+    today_date = 20240818
     
     combined_df = read_and_combine_sheets(existed_song1, existed_song2, new_song1, new_song2)
     combined_df = calculate_ranks(combined_df)
     combined_df = format_r_columns(combined_df)
+    combined_df = update_count(combined_df, today_date)
+    
     save_to_excel(combined_df, f'差异/合并表格/{existed_song1}与{existed_song2}.xlsx')
 
     df3 = pd.read_excel(f'新曲数据/{new_song1}.xlsx')
@@ -19,8 +24,10 @@ def main():
 
     updated_existing_songs = update_existing_songs(combined_df)
     save_to_excel(updated_existing_songs, '收录曲目.xlsx', adjust_width=False)
-
+    
 def read_and_combine_sheets(existed_song1, existed_song2, new_song1, new_song2):
+    """合并新旧曲日增文件"""
+    
     existed_song = f'{existed_song1}与{existed_song2}'
     new_song = f'{new_song1}与{new_song2}'
 
@@ -31,6 +38,7 @@ def read_and_combine_sheets(existed_song1, existed_song2, new_song1, new_song2):
     return combined_df
 
 def calculate_ranks(df):
+    """重新计算各项排名"""
     df = df.sort_values('point', ascending=False)
     for col in ['view', 'favorite', 'coin', 'like']:
         df[f'{col}_rank'] = df[col].rank(ascending=False, method='min')
@@ -38,18 +46,41 @@ def calculate_ranks(df):
     return df
 
 def format_r_columns(df):
+    """格式化各项补正数据"""
+    
     r_columns = ['viewR', 'favoriteR', 'coinR', 'likeR']
     for col in r_columns:
         df[col] = df[col].apply(lambda x: f'{x:.2f}')
     return df
 
+def update_count(df_today, today_date):
+    """计算本期歌曲上榜次数"""
+    
+    prev_date = (datetime.strptime(str(today_date), '%Y%m%d') - timedelta(days=1)).strftime("%Y%m%d")
+    prev_file_path = f'差异/合并表格/{today_date}与{prev_date}.xlsx'
+    
+    if os.path.exists(prev_file_path):
+        df_prev = pd.read_excel(prev_file_path)
+        if 'count' not in df_prev.columns:
+            df_prev['count'] = 0  
+    else:
+        df_prev = pd.DataFrame(columns=['name', 'count'])
+
+    prev_count_dict = dict(zip(df_prev['name'], df_prev['count']))
+    
+    df_today['count'] = df_today.apply(lambda row: prev_count_dict.get(row['name'], 0) + (1 if row['rank'] <= 20 else 0), axis=1)
+    
+    return df_today
+
+
 def save_to_excel(df, filename, adjust_width=True):
+    """格式化保存文件"""
     with pd.ExcelWriter(filename, engine='openpyxl') as writer:
-        # 将pubdate列转换为字符串并格式化为指定的文本
+        # 将pubdate列转换为字符串并格式化为"yyyy-mm-dd hh:mm:sss"
         if 'pubdate' in df.columns:
             df['pubdate'] = pd.to_datetime(df['pubdate'], errors='coerce')
             df['pubdate'] = df['pubdate'].apply(lambda x: x.strftime('%Y-%m-%d %H:%M:%S') if not pd.isnull(x) else '')
-            df['pubdate'] = df['pubdate'].astype(str)  # 确保是字符串类型
+            df['pubdate'] = df['pubdate'].astype(str) 
 
         df.to_excel(writer, index=False, sheet_name='Sheet1')
 
@@ -69,6 +100,8 @@ def save_to_excel(df, filename, adjust_width=True):
     print(f"处理完成，{filename}数据已保存。")
 
 def process_new_songs(df2, df3, existed_song1):
+    """将本期新曲数据复制到旧曲数据"""
+    
     new_songs = []
     for _, row in df2.iterrows():
         bvid = row['bvid']
@@ -84,6 +117,7 @@ def process_new_songs(df2, df3, existed_song1):
                 'copyright': row['copyright'],
                 'synthesizer': row['synthesizer'],
                 'vocal': row['vocal'],
+                'type': row['type'],
                 'pubdate': match['pubdate'],
                 'duration':match['duration'],
                 'view': match['view'],
@@ -98,9 +132,9 @@ def process_new_songs(df2, df3, existed_song1):
     return updated_df1
 
 def update_existing_songs(df2):
-    selected_columns = ['name', 'bvid', 'title', 'view', 'pubdate', 'author', 'uploader', 'copyright', 'synthesizer', 'vocal']
+    selected_columns = ['name', 'bvid', 'title', 'view', 'pubdate', 'author', 'uploader', 'copyright', 'synthesizer', 'vocal','type']
     df2_selected = df2[selected_columns]
-    df2_selected.columns = ['Title', 'BVID', 'Video Title', 'View', 'Pubdate', 'Author', 'Uploader', 'Copyright', 'Synthesizer', 'Vocal']
+    df2_selected.columns = ['Title', 'BVID', 'Video Title', 'View', 'Pubdate', 'Author', 'Uploader', 'Copyright', 'Synthesizer', 'Vocal', 'Type']
 
     existing_df = pd.read_excel('收录曲目.xlsx')
     new_entries = df2_selected[~df2_selected['BVID'].isin(existing_df['BVID'])]

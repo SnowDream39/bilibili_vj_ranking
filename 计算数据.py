@@ -4,10 +4,10 @@ from math import ceil, floor
 from datetime import datetime
 from openpyxl import Workbook
 
-old_time_data = '20240805000247'
-new_time_data = '20240806000013'
-old_time_new_song = '新曲20240805000823'
-new_time_new_song = '新曲20240806000829'
+old_time_data = '20240818000512'
+new_time_data = '20240819000524'
+old_time_new_song = '新曲20240817235408'
+new_time_new_song = '新曲20240818235358'
 
 def read_data(file_path, columns=None):
     return pd.read_excel(file_path, usecols=columns)
@@ -68,6 +68,7 @@ def process_records(records, old_data, new_data, data_type="data", collected_dat
             duration = new['duration']
             synthesizer = new['synthesizer']
             vocal = new['vocal']
+            type = new['type']
             
             if data_type == "new_song" and collected_data is not None:
                 collected_record = collected_data[collected_data['BVID'] == bvid]
@@ -78,13 +79,14 @@ def process_records(records, old_data, new_data, data_type="data", collected_dat
                     hascopyright = collected['Copyright']
                     synthesizer = collected['Synthesizer']
                     vocal = collected['Vocal']
+                    type = collected['Type']
 
             diff = calculate_differences(new, old)
             viewR, favoriteR, coinR, likeR = calculate_scores(diff['view'], diff['favorite'], diff['coin'], diff['like'], hascopyright)
             viewR, favoriteR, coinR, likeR = format_scores(viewR, favoriteR, coinR, likeR)
             point = calculate_points(diff['view'], diff['favorite'], diff['coin'], diff['like'], float(viewR), float(favoriteR), float(coinR), float(likeR))
 
-            info_list.append([title, bvid, name, author, uploader, hascopyright, synthesizer, vocal, pubdate, duration, diff['view'], diff['favorite'], diff['coin'], diff['like'], viewR, favoriteR, coinR, likeR, point])
+            info_list.append([title, bvid, name, author, uploader, hascopyright, synthesizer, vocal, type, pubdate, duration, diff['view'], diff['favorite'], diff['coin'], diff['like'], viewR, favoriteR, coinR, likeR, point])
         
         except Exception as e:
             print(f"Error fetching info for BVID {bvid}: {e}")
@@ -103,7 +105,7 @@ def save_to_excel(df, filename, adjust_width=True):
 
 
 def main_processing(old_data_path, new_data_path, output_path, point_threshold=None, data_type="data"):
-    columns = ['bvid', 'video_title', 'title', 'author', 'uploader', 'copyright', 'synthesizer', 'vocal', 'pubdate', 'duration', 'view', 'favorite', 'coin', 'like']
+    columns = ['bvid', 'video_title', 'title', 'author', 'uploader', 'copyright', 'synthesizer', 'vocal', 'type', 'pubdate', 'duration', 'view', 'favorite', 'coin', 'like']
     old_data = read_data(old_data_path, columns=columns)
     new_data = read_data(new_data_path, columns=columns)
 
@@ -119,7 +121,7 @@ def main_processing(old_data_path, new_data_path, output_path, point_threshold=N
     info_list = process_records(records, old_data, new_data, data_type, collected_data)
     
     if info_list:
-        stock_list = pd.DataFrame(info_list, columns=['title', 'bvid', 'name', 'author', 'uploader', 'copyright', 'synthesizer', 'vocal', 'pubdate', 'duration', 'view', 'favorite', 'coin', 'like', 'viewR', 'favoriteR', 'coinR', 'likeR', 'point',])
+        stock_list = pd.DataFrame(info_list, columns=['title', 'bvid', 'name', 'author', 'uploader', 'copyright', 'synthesizer', 'vocal', 'type', 'pubdate', 'duration', 'view', 'favorite', 'coin', 'like', 'viewR', 'favoriteR', 'coinR', 'likeR', 'point',])
         if point_threshold:
             stock_list = stock_list[stock_list['point'] >= point_threshold]
         stock_list = stock_list.sort_values('point', ascending=False)
@@ -137,11 +139,12 @@ def main_processing(old_data_path, new_data_path, output_path, point_threshold=N
 
 async def main() -> None:
     await asyncio.gather(
+        
         asyncio.to_thread(main_processing, 
                           f'数据/{old_time_data}.xlsx', 
                           f'数据/{new_time_data}.xlsx', 
                           f"差异/非新曲/{new_time_data}与{old_time_data}.xlsx"),
-
+        
         asyncio.to_thread(main_processing, 
                           f'新曲数据/{old_time_new_song}.xlsx', 
                           f'新曲数据/{new_time_new_song}.xlsx', 

@@ -1,0 +1,88 @@
+{| class="wikitable sortable" style="text-align:center;"
+|-
+! #期数 !! 冠军歌曲 !! 歌姬 !! P主 !! 得点(pts)
+|-
+| -1 || [[好]] || style="background:#39C5BB"|初音未来 || DECO*27 || 93568
+|-
+| 0 || [[好]] || style="background:#39C5BB"|初音未来 || DECO*27 || 92123
+|-
+| 1 || [[好]] || style="background:#39C5BB"|初音未来 || DECO*27 || 108217
+|-
+| 2 || [[山田PERFECT]] || style="background:#39C5BB"|初音未来 || jon-YAKITORY || 217930
+|-
+| 3 || [[山田PERFECT]] || style="background:#39C5BB"|初音未来 || jon-YAKITORY || 277304
+|-
+| 4 || [[山田PERFECT]] || style="background:#39C5BB"|初音未来 || jon-YAKITORY || 222347
+|-
+| 5 || [[死别]] || style="background:#CCFF00"|GUMI || シャノン || 108912
+|-
+| 6 || [[死别]] || style="background:#CCFF00"|GUMI || シャノン || 112322
+|-
+| 7 || [[死别]] || style="background:#CCFF00"|GUMI || シャノン || 92724
+|-
+| 8 || [[Sickman]] || style="background:#39C5BB"|初音未来 || Chinozo || 109789
+|-
+| 9 || [[催眠者]] || style="background: linear-gradient(to right, #39C5BB 50%, #D93A49 50%);"| 初音未来、重音Teto || サツキ || 92158
+|-
+| 10 || [[催眠者]] || style="background: linear-gradient(to right, #39C5BB 50%, #D93A49 50%);"| 初音未来、重音Teto || サツキ || 92512
+|-
+| 11 || [[Flyer!]] || style="background:#996699"|V flower || Chinozo || 129129
+|-
+| 12 || [[天线39]] || style="background:#39C5BB"|初音未来 || 柊マグネタイト || 107956
+|-
+| 13 || [[天线39]] || style="background:#39C5BB"|初音未来 || 柊マグネタイト || 344552
+|-
+| 14 || [[天线39]] || style="background:#39C5BB"|初音未来 || 柊マグネタイト || 137285
+|-
+| 15 || [[踩到猫了。]] || style="background:#4D79FF"|可不 || A4。 || 95978
+|-
+| 16 || [[踩到猫了。]] || style="background:#4D79FF"|可不 || A4。 || 428715
+|-
+| 17 || [[UTuber]] || style="background: linear-gradient(to right, #39C5BB 50%, #000000 50%);"| 初音未来、{{color|white|油库里}} || ピノキオピー || 1134862
+|-
+| 18 || [[UTuber]] || style="background: linear-gradient(to right, #39C5BB 50%, #000000 50%);"| 初音未来、{{color|white|油库里}} || ピノキオピー || 1026267
+|-
+| 19 || [[UTuber]] || style="background: linear-gradient(to right, #39C5BB 50%, #000000 50%);"| 初音未来、{{color|white|油库里}} || ピノキオピー || 536983
+|-
+| 20 || [[UTuber]] || style="background: linear-gradient(to right, #39C5BB 50%, #000000 50%);"| 初音未来、{{color|white|油库里}} || ピノキオピー || 370010
+|-
+| 21 || [[热异常]]* || style="background:#0000FF"|KAITO || Earthy X6 || 334099
+|-
+| 22 || [[被生命所厌恶。]] || style="background:#39C5BB"|初音未来 || カンザキイオリ || 680072
+|-
+| 23 || [[被生命所厌恶。]] || style="background:#39C5BB"|初音未来 || カンザキイオリ || 707725
+|-
+| 24 || [[被生命所厌恶。]] || style="background:#39C5BB"|初音未来 || カンザキイオリ || 289875
+|-
+| 25 || [[被生命所厌恶。]] || style="background:#39C5BB"|初音未来 || カンザキイオリ || 189367
+|-
+| 26 || [[被生命所厌恶。]] || style="background:#39C5BB"|初音未来 || カンザキイオリ || 136418
+|-
+| 27 || [[我]] || style="background:#D93A49"|重音Teto || 难不成是爽 || 229265
+|-
+| 28 || [[Aino]] || style="background:#39C5BB"|初音未来 || とあ || 115354
+|-
+| 29 || [[被生命所厌恶。]] || style="background:#39C5BB"|初音未来 || カンザキイオリ || 113001
+|-
+| 30 || [[被生命所厌恶。]] || style="background:#39C5BB"|初音未来 || カンザキイオリ || 88802
+|-
+| 31 || [[乐意效劳]]* || style="background:#39C5BB"|初音未来 || 小绵羊magens || 251009
+|-
+| 32 || [[乐意效劳]]* || style="background:#39C5BB"|初音未来 || 小绵羊magens || 706611
+|-
+| 33 || [[乐意效劳]]* || style="background:#39C5BB"|初音未来 || 小绵羊magens || 414529
+|-
+| 34 || [[乐意效劳]]* || style="background:#39C5BB"|初音未来 || 小绵羊magens || 251188
+|-
+| 35 || [[乐意效劳]]* || style="background:#39C5BB"|初音未来 || 小绵羊magens || 191305
+|-
+| 36 || [[乐意效劳]]* || style="background:#39C5BB"|初音未来 || 小绵羊magens || 171386
+|-
+| 37 || [[ULTRA C]] || style="background: linear-gradient(to right, #FF8800 50%, #FFF000 50%);"| 镜音铃、镜音连 || Giga、TeddyLoid || 192241
+|-
+| 38 || [[ULTRA C]] || style="background: linear-gradient(to right, #FF8800 50%, #FFF000 50%);"| 镜音铃、镜音连 || Giga、TeddyLoid || 184822
+|-
+| 39 || [[乐意效劳]]* || style="background:#39C5BB"|初音未来 || 小绵羊magens || 137003
+|-
+| 40 || [[明明曾爱着你]]* || style="background:#D93A49"|重音Teto || samuton9574 || 153512
+|}
