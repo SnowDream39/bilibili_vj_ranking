@@ -7,10 +7,10 @@ from openpyxl import Workbook
 
 today = datetime.now().replace(hour=0, minute=0,second=0,microsecond=0)
 yesterday = today - timedelta(days=1)
-old_time_data = today.strftime("%Y%m%d")
+old_time_data = yesterday.strftime("%Y%m%d")
 new_time_data = today.strftime("%Y%m%d")
 old_time_new_song = '新曲' + yesterday.strftime("%Y%m%d")
-new_time_new_song = '新曲' + yesterday.strftime("%Y%m%d")
+new_time_new_song = '新曲' + today.strftime("%Y%m%d")
 
 
 def read_data(file_path, columns=None):
