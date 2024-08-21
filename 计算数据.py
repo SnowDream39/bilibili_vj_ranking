@@ -58,7 +58,7 @@ def process_records(records, old_data, new_data, data_type="data", collected_dat
 
             new = new_record.iloc[0]
             if old_record.empty and data_type == "data":
-                if datetime.strptime(pubdate, "%Y-%m-%d %H:%M:%S") < datetime.strptime(old_time_data, "%Y%m%d%H%M%S"):
+                if datetime.strptime(pubdate, "%Y-%m-%d %H:%M:%S") < yesterday:
                     continue
                 old = {'view': 0, 'favorite': 0, 'coin': 0, 'like': 0}
             else:
@@ -147,12 +147,12 @@ async def main() -> None:
         asyncio.to_thread(main_processing, 
                           f'数据/{old_time_data}.xlsx', 
                           f'数据/{new_time_data}.xlsx', 
-                          f"差异/非新曲/{new_time_data}与{old_time_data}.xlsx"),
+                          f"差异/非新曲/筛选前{new_time_data}与{old_time_data}.xlsx"),
         
         asyncio.to_thread(main_processing, 
                           f'新曲数据/{old_time_new_song}.xlsx', 
                           f'新曲数据/{new_time_new_song}.xlsx', 
-                          f"差异/新曲/{new_time_new_song}与{old_time_new_song}.xlsx", 
+                          f"差异/新曲/筛选前{new_time_new_song}与{old_time_new_song}.xlsx", 
                           point_threshold=2000, 
                           data_type="new_song")
     )
