@@ -25,8 +25,8 @@ class BilibiliScraper:
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/89.0 Safari/537.36',
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/91.0.864.67 Safari/537.36',
         ]
-        self.now = datetime.now()
-        self.start_time = self.now - timedelta(days=days)
+        self.today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0) 
+        self.start_time = self.today - timedelta(days=days)
 
     @staticmethod
     def clean_html_tags(text):
@@ -181,7 +181,7 @@ class BilibiliScraper:
         df = pd.DataFrame(videos)
         df = df.sort_values(by='view', ascending=False)
         df = df[['video_title', 'bvid', 'title', 'author', 'uploader', 'copyright', 'synthesizer', 'vocal', 'type', 'pubdate', 'duration', 'view', 'favorite', 'coin', 'like']]
-        filename = f"新曲数据/新曲{self.now.strftime('%Y%m%d%H%M%S')}.xlsx"
+        filename = f"新曲数据/新曲{self.today.strftime('%Y%m%d')}.xlsx"
 
         with pd.ExcelWriter(filename, engine='openpyxl') as writer:
             df.to_excel(writer, index=False, sheet_name='Sheet1')

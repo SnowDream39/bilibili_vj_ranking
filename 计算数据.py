@@ -1,13 +1,17 @@
 import asyncio
 import pandas as pd
 from math import ceil, floor
-from datetime import datetime
+from datetime import datetime, timedelta
 from openpyxl import Workbook
 
-old_time_data = '20240818000512'
-new_time_data = '20240819000524'
-old_time_new_song = '新曲20240817235408'
-new_time_new_song = '新曲20240818235358'
+
+today = datetime.now().replace(hour=0, minute=0,second=0,microsecond=0)
+yesterday = today - timedelta(days=1)
+old_time_data = today.strftime("%Y%m%d")
+new_time_data = today.strftime("%Y%m%d")
+old_time_new_song = '新曲' + yesterday.strftime("%Y%m%d")
+new_time_new_song = '新曲' + yesterday.strftime("%Y%m%d")
+
 
 def read_data(file_path, columns=None):
     return pd.read_excel(file_path, usecols=columns)

@@ -2,3 +2,10 @@ bilibili日V周刊.sln
 bilibili日V周刊.pyproj
 __pycache__/
 .editorconfig
+
+差异/
+数据/
+特殊/
+新曲榜/
+新曲数据/
+月榜/
