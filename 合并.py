@@ -5,11 +5,11 @@ from openpyxl.utils import get_column_letter
 from datetime import datetime, timedelta
 
 def main():
-    existed_song1 = '20240819000524'
-    existed_song2 = '20240818000512'
-    new_song1 = '新曲20240818235358'
-    new_song2 = '新曲20240817235408'
-    today_date = 20240818
+    existed_song1 = '20240831'
+    existed_song2 = '20240830'
+    new_song1 = '新曲20240831'
+    new_song2 = '新曲20240830'
+    today_date = 20240830
     
     combined_df = read_and_combine_sheets(existed_song1, existed_song2, new_song1, new_song2)
     combined_df = calculate_ranks(combined_df)
@@ -123,8 +123,8 @@ def process_new_songs(df2, df3, existed_song1):
                 'view': match['view'],
                 'favorite': match['favorite'],
                 'coin': match['coin'],
-                'like': match['like']
-
+                'like': match['like'],
+                'image_url': match['image_url']
             })
     new_songs_df = pd.DataFrame(new_songs)
     existing_df1 = pd.read_excel(f'数据/{existed_song1}.xlsx', engine='openpyxl')
@@ -132,9 +132,9 @@ def process_new_songs(df2, df3, existed_song1):
     return updated_df1
 
 def update_existing_songs(df2):
-    selected_columns = ['name', 'bvid', 'title', 'view', 'pubdate', 'author', 'uploader', 'copyright', 'synthesizer', 'vocal','type']
+    selected_columns = ['name', 'bvid', 'title', 'view', 'pubdate', 'author', 'uploader', 'copyright', 'synthesizer', 'vocal','type', 'image_url']
     df2_selected = df2[selected_columns]
-    df2_selected.columns = ['Title', 'BVID', 'Video Title', 'View', 'Pubdate', 'Author', 'Uploader', 'Copyright', 'Synthesizer', 'Vocal', 'Type']
+    df2_selected.columns = ['Title', 'BVID', 'Video Title', 'View', 'Pubdate', 'Author', 'Uploader', 'Copyright', 'Synthesizer', 'Vocal', 'Type', 'image_url']
 
     existing_df = pd.read_excel('收录曲目.xlsx')
     new_entries = df2_selected[~df2_selected['BVID'].isin(existing_df['BVID'])]

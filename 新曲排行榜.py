@@ -2,8 +2,8 @@ import pandas as pd
 from datetime import datetime, timedelta
 
 def main():
-    today = 20240818
-    file_path = 'E:/Programming/python/bilibili日V周刊/差异/新曲/新曲20240818235358与新曲20240817235408.xlsx'
+    today = 20240830
+    file_path = 'E:/Programming/python/bilibili日V周刊/差异/新曲/新曲20240831与新曲20240830.xlsx'
 
     today_date = datetime.strptime(str(today), "%Y%m%d")
     previous_day_date = today_date - timedelta(days=1)
@@ -13,14 +13,14 @@ def main():
     output_path = f'新曲榜/新曲{next_day_date.strftime("%Y%m%d")}与新曲{today_date.strftime("%Y%m%d")}.xlsx'
 
     df, previous_rank_df = load_data(today, file_path, previous_rank_path)
-    df = df[['title', 'bvid', 'name', 'author', 'uploader', 'copyright', 'synthesizer', 'vocal', 'type', 'pubdate', 'duration', 'view', 'favorite', 'coin', 'like', 'viewR', 'favoriteR', 'coinR', 'likeR', 'point']]
-    previous_rank_df = previous_rank_df[['title', 'highest_rank']]
+    df = df[['title', 'bvid', 'name', 'author', 'uploader', 'copyright', 'synthesizer', 'vocal', 'type', 'pubdate', 'duration', 'view', 'favorite', 'coin', 'like', 'viewR', 'favoriteR', 'coinR', 'likeR', 'point', 'image_url']]
+    previous_rank_df = previous_rank_df[['name', 'highest_rank']]
 
     df = filter_recent_songs(df, today_date)
     new_ranking_df = calculate_rankings(df, previous_rank_df)
     new_ranking_df = add_rank_columns(new_ranking_df)
 
-    final_ranking = new_ranking_df[['title', 'bvid', 'name', 'author', 'uploader', 'copyright', 'synthesizer', 'vocal', 'type', 'pubdate', 'duration', 'view', 'favorite', 'coin', 'like', 'viewR', 'favoriteR', 'coinR', 'likeR', 'point', 'view_rank', 'favorite_rank', 'coin_rank', 'like_rank', 'rank', 'highest_rank']]
+    final_ranking = new_ranking_df[['title', 'bvid', 'name', 'author', 'uploader', 'copyright', 'synthesizer', 'vocal', 'type', 'pubdate', 'duration', 'view', 'favorite', 'coin', 'like', 'viewR', 'favoriteR', 'coinR', 'likeR', 'point', 'image_url', 'view_rank', 'favorite_rank', 'coin_rank', 'like_rank', 'rank', 'highest_rank']]
     final_ranking = format_columns(final_ranking)
     save_to_excel(final_ranking, output_path)
 
@@ -45,7 +45,7 @@ def calculate_rankings(df, previous_rank_df):
     df = df.sort_values(by='point', ascending=False).reset_index(drop=True)
     df['rank'] = df.index + 1
 
-    merged_df = df.merge(previous_rank_df, on='title', how='left')
+    merged_df = df.merge(previous_rank_df, on='name', how='left')
     merged_df['highest_rank'] = merged_df['highest_rank'].fillna(float('inf'))
 
     new_ranking = []

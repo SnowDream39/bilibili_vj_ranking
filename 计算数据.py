@@ -1,13 +1,17 @@
 import asyncio
 import pandas as pd
 from math import ceil, floor
-from datetime import datetime
+from datetime import datetime, timedelta
 from openpyxl import Workbook
 
-old_time_data = '20240818000512'
-new_time_data = '20240819000524'
-old_time_new_song = '新曲20240817235408'
-new_time_new_song = '新曲20240818235358'
+
+today = datetime.now().replace(hour=0, minute=0,second=0,microsecond=0)
+yesterday = today - timedelta(days=1)
+old_time_data = yesterday.strftime("%Y%m%d")
+new_time_data = today.strftime("%Y%m%d")
+old_time_new_song = '新曲' + yesterday.strftime("%Y%m%d")
+new_time_new_song = '新曲' + today.strftime("%Y%m%d")
+
 
 def read_data(file_path, columns=None):
     return pd.read_excel(file_path, usecols=columns)
@@ -54,7 +58,7 @@ def process_records(records, old_data, new_data, data_type="data", collected_dat
 
             new = new_record.iloc[0]
             if old_record.empty and data_type == "data":
-                if datetime.strptime(pubdate, "%Y-%m-%d %H:%M:%S") < datetime.strptime(old_time_data, "%Y%m%d%H%M%S"):
+                if datetime.strptime(pubdate, "%Y-%m-%d %H:%M:%S") < yesterday:
                     continue
                 old = {'view': 0, 'favorite': 0, 'coin': 0, 'like': 0}
             else:
@@ -69,6 +73,7 @@ def process_records(records, old_data, new_data, data_type="data", collected_dat
             synthesizer = new['synthesizer']
             vocal = new['vocal']
             type = new['type']
+            image_url = new['image_url']
             
             if data_type == "new_song" and collected_data is not None:
                 collected_record = collected_data[collected_data['BVID'] == bvid]
@@ -80,13 +85,14 @@ def process_records(records, old_data, new_data, data_type="data", collected_dat
                     synthesizer = collected['Synthesizer']
                     vocal = collected['Vocal']
                     type = collected['Type']
-
+                    image_url = new['image_url']
+                    
             diff = calculate_differences(new, old)
             viewR, favoriteR, coinR, likeR = calculate_scores(diff['view'], diff['favorite'], diff['coin'], diff['like'], hascopyright)
             viewR, favoriteR, coinR, likeR = format_scores(viewR, favoriteR, coinR, likeR)
             point = calculate_points(diff['view'], diff['favorite'], diff['coin'], diff['like'], float(viewR), float(favoriteR), float(coinR), float(likeR))
 
-            info_list.append([title, bvid, name, author, uploader, hascopyright, synthesizer, vocal, type, pubdate, duration, diff['view'], diff['favorite'], diff['coin'], diff['like'], viewR, favoriteR, coinR, likeR, point])
+            info_list.append([title, bvid, name, author, uploader, hascopyright, synthesizer, vocal, type, pubdate, duration, diff['view'], diff['favorite'], diff['coin'], diff['like'], viewR, favoriteR, coinR, likeR, point, image_url])
         
         except Exception as e:
             print(f"Error fetching info for BVID {bvid}: {e}")
@@ -105,7 +111,7 @@ def save_to_excel(df, filename, adjust_width=True):
 
 
 def main_processing(old_data_path, new_data_path, output_path, point_threshold=None, data_type="data"):
-    columns = ['bvid', 'video_title', 'title', 'author', 'uploader', 'copyright', 'synthesizer', 'vocal', 'type', 'pubdate', 'duration', 'view', 'favorite', 'coin', 'like']
+    columns = ['bvid', 'video_title', 'title', 'author', 'uploader', 'copyright', 'synthesizer', 'vocal', 'type', 'pubdate', 'duration', 'view', 'favorite', 'coin', 'like', 'image_url']
     old_data = read_data(old_data_path, columns=columns)
     new_data = read_data(new_data_path, columns=columns)
 
@@ -121,7 +127,7 @@ def main_processing(old_data_path, new_data_path, output_path, point_threshold=N
     info_list = process_records(records, old_data, new_data, data_type, collected_data)
     
     if info_list:
-        stock_list = pd.DataFrame(info_list, columns=['title', 'bvid', 'name', 'author', 'uploader', 'copyright', 'synthesizer', 'vocal', 'type', 'pubdate', 'duration', 'view', 'favorite', 'coin', 'like', 'viewR', 'favoriteR', 'coinR', 'likeR', 'point',])
+        stock_list = pd.DataFrame(info_list, columns=['title', 'bvid', 'name', 'author', 'uploader', 'copyright', 'synthesizer', 'vocal', 'type', 'pubdate', 'duration', 'view', 'favorite', 'coin', 'like', 'viewR', 'favoriteR', 'coinR', 'likeR', 'point', 'image_url'])
         if point_threshold:
             stock_list = stock_list[stock_list['point'] >= point_threshold]
         stock_list = stock_list.sort_values('point', ascending=False)
@@ -143,12 +149,12 @@ async def main() -> None:
         asyncio.to_thread(main_processing, 
                           f'数据/{old_time_data}.xlsx', 
                           f'数据/{new_time_data}.xlsx', 
-                          f"差异/非新曲/{new_time_data}与{old_time_data}.xlsx"),
+                          f"差异/非新曲/筛选前{new_time_data}与{old_time_data}.xlsx"),
         
         asyncio.to_thread(main_processing, 
                           f'新曲数据/{old_time_new_song}.xlsx', 
                           f'新曲数据/{new_time_new_song}.xlsx', 
-                          f"差异/新曲/{new_time_new_song}与{old_time_new_song}.xlsx", 
+                          f"差异/新曲/筛选前{new_time_new_song}与{old_time_new_song}.xlsx", 
                           point_threshold=2000, 
                           data_type="new_song")
     )

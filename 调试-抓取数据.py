@@ -1,7 +1,7 @@
 import asyncio
 import subprocess
 import pandas as pd
-from datetime import datetime,timedelta
+from datetime import datetime
 from bilibili_api import video
 
 class SongDataFetcher:
@@ -12,8 +12,7 @@ class SongDataFetcher:
         self.info_list = []
         self.error_list = []
         self.data_list = []
-        self.semaphore = asyncio.Semaphore(5)  # 限制并发任务数为10
-        self.today = datetime.now().replace(hour=0,minute=0,second=0,microsecond=0) + timedelta(days=1)
+        self.semaphore = asyncio.Semaphore(5)  # 限制并发任务数为5
 
     def run_script_in_new_window(self, script):
         subprocess.Popen(['start', 'cmd', '/k', f'python {script}'], shell=True)
@@ -43,7 +42,7 @@ class SongDataFetcher:
             owner_data = info.get('owner')
             duration = self.convert_duration(info.get('duration'))
             image_url = info.get('pic')  # 获取视频的封面图片链接
-            
+
             if stat_data and owner_data:
                 view = stat_data.get('view')
                 favorite = stat_data.get('favorite')
@@ -86,7 +85,7 @@ class SongDataFetcher:
                 'copyright', 'synthesizer', 'vocal', 'type', 'pubdate', 
                 'duration', 'view', 'favorite', 'coin', 'like', 'image_url'
             ])
-            filename = f"{self.output_dir}/{self.today.strftime('%Y%m%d')}.xlsx"
+            filename = f"{self.output_dir}/{datetime.now().strftime('%Y%m%d%H%M%S')}.xlsx"
             stock_list.to_excel(filename, index=False)
             print(f"处理完成，数据已保存到 {filename}")
 
