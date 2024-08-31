@@ -181,7 +181,9 @@ class BilibiliScraper:
     async def save_to_excel(self, videos):
         df = pd.DataFrame(videos)
         df = df.sort_values(by='view', ascending=False)
-        df = df[['video_title', 'bvid', 'title', 'author', 'uploader', 'copyright', 'synthesizer', 'vocal', 'type', 'pubdate', 'duration', 'view', 'favorite', 'coin', 'like', 'image_url']]
+
+        df = df[['video_title', 'bvid', 'title', 'author', 'uploader', 'copyright', 'synthesizer', 'vocal', 'type', 'pubdate', 'duration', 'view', 'favorite', 'coin', 'like']]
+
         filename = f"新曲数据/新曲{self.today.strftime('%Y%m%d')}.xlsx"
 
         with pd.ExcelWriter(filename, engine='openpyxl') as writer:
