@@ -182,7 +182,7 @@ class BilibiliScraper:
         df = pd.DataFrame(videos)
         df = df.sort_values(by='view', ascending=False)
 
-        df = df[['video_title', 'bvid', 'title', 'author', 'uploader', 'copyright', 'synthesizer', 'vocal', 'type', 'pubdate', 'duration', 'view', 'favorite', 'coin', 'like']]
+        df = df[['video_title', 'bvid', 'title', 'author', 'uploader', 'copyright', 'synthesizer', 'vocal', 'type', 'pubdate', 'duration', 'view', 'favorite', 'coin', 'like', 'image_url']]
 
         filename = f"新曲数据/新曲{self.today.strftime('%Y%m%d')}.xlsx"
 

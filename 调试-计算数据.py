@@ -4,10 +4,10 @@ from math import ceil, floor
 from datetime import datetime
 from openpyxl import Workbook
 
-old_time_data = '20240830'
-new_time_data = '20240831'
-old_time_new_song = '新曲20240830'
-new_time_new_song = '新曲20240831'
+old_time_data = '20240906'
+new_time_data = '20240907'
+old_time_new_song = '新曲20240906'
+new_time_new_song = '新曲20240907'
 
 def read_data(file_path, columns=None):
     return pd.read_excel(file_path, usecols=columns)
@@ -151,7 +151,7 @@ async def main() -> None:
                           f'新曲数据/{old_time_new_song}.xlsx', 
                           f'新曲数据/{new_time_new_song}.xlsx', 
                           f"差异/新曲/{new_time_new_song}与{old_time_new_song}.xlsx", 
-                          point_threshold=2000, 
+                          point_threshold=1000, 
                           data_type="new_song")
     )
 

@@ -3,17 +3,18 @@ bilibili日V周刊.pyproj
 __pycache__/
 .editorconfig
 收录曲目.xlsx
-
+.vs/
 差异/
 数据/
 特殊/
 新曲榜/
 新曲数据/
-<<<<<<< HEAD
+周刊/
 月榜/
 测试内容/
-
 测试1.py
-=======
-月榜/
->>>>>>> 306c480ecb8e63a4ae47a519b4a54e1d50f1d3bc
+模块1.py
+模块2.py
+模块3.py
+模块4.py
+模块5.py
