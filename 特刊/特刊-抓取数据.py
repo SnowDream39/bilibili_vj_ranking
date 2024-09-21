@@ -1,19 +1,21 @@
 import asyncio
 import aiohttp
 import pandas as pd
-from bilibili_api import search, video, Credential
+from bilibili_api import search, video, Credential, video_zone
 from datetime import datetime, timedelta
 import re
 import random
 from openpyxl.utils import get_column_letter
 from bilibili_api import settings
 
-
-KEYWORDS = ["强风大背头","強風オールバック"]
+NAME = "梦的结唱"
+KEYWORDS = ["夢ノ結唱","梦的结唱"]
+VIDEO_ZONE_TYPES = [video_zone.VideoZoneTypes.MUSIC]
 
 class BilibiliScraper:
-    def __init__(self, keywords, days=None, max_retries=3, headers_list=None):
+    def __init__(self, keywords, video_zone_types, days=None, max_retries=3, headers_list=None):
         self.keywords = keywords
+        self.video_zone_types = video_zone_types
         self.max_retries = max_retries
         self.headers_list = headers_list or [
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
@@ -30,43 +32,11 @@ class BilibiliScraper:
         duration -= 1
         minutes, seconds = divmod(duration, 60)
         return f'{minutes}分{seconds}秒' if minutes > 0 else f'{seconds}秒'
-    
-    async def search_videos(self, keyword):
-        bvids = []
-        page = 1
-
-        while True:
-            print(f"Searching for keyword: {keyword}, page: {page}")
-            result = await search.search_by_type(
-                keyword,
-                search_type=search.SearchObjectType.VIDEO,
-                order_type=search.OrderVideo.CLICK,
-                video_zone_type=30,
-                page=page
-            )
-
-            videos = result.get('result', [])
-            if not videos:
-                break
-
-            for item in videos:
-                bvids.append(item['bvid'])
-                print(f"Found video: {item['bvid']}")
-                
-            page += 1
-            await asyncio.sleep(0.5)
-
-        return bvids
 
     async def get_all_bvids(self):
-        all_bvids = []
-
-        for keyword in self.keywords:
-            print(f"Processing keyword: {keyword}")
-            bvids = await self.search_videos(keyword)
-            all_bvids.extend(bvids)
-
-        return list(set(all_bvids))
+        original_data = pd.read_excel("{NAME}收录范围.xlsx")
+        bvid = original_data['bvid'].to_list()
+        return bvid 
 
     async def fetch_video_details(self, bvid):
         for attempt in range(self.max_retries):
@@ -121,14 +91,16 @@ class BilibiliScraper:
             video['uploader'] = video['author']
             video['synthesizer'] = ""
             video['vocal'] = ""
+            video['type'] = ""
+
 
         return videos
 
     async def save_to_excel(self, videos):
         df = pd.DataFrame(videos)
         df = df.sort_values(by='view', ascending=False)
-        df = df[['video_title', 'bvid', 'title', 'author', 'uploader', 'copyright', 'synthesizer', 'vocal', 'pubdate', 'duration', 'view', 'favorite', 'coin', 'like']]
-        filename = f"特殊/特殊原始数据/强风大背头.xlsx"
+        df = df[['video_title', 'bvid', 'title', 'author', 'uploader', 'copyright', 'synthesizer', 'vocal', 'type', 'pubdate', 'duration', 'view', 'favorite', 'coin', 'like']]
+        filename = f"特殊/特殊原始数据/{NAME}.xlsx"
 
         with pd.ExcelWriter(filename, engine='openpyxl') as writer:
             df.to_excel(writer, index=False, sheet_name='Sheet1')
@@ -142,7 +114,7 @@ class BilibiliScraper:
         print("处理完成，数据已保存到", filename)
 
 async def main():
-    scraper = BilibiliScraper(KEYWORDS)
+    scraper = BilibiliScraper(KEYWORDS, VIDEO_ZONE_TYPES)
     videos = await scraper.get_all_videos()
     await scraper.save_to_excel(videos)
 
