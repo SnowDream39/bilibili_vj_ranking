@@ -2,15 +2,15 @@ import pandas as pd
 from datetime import datetime, timedelta
 
 def main():
-    today = 20240830
-    file_path = 'E:/Programming/python/bilibili日V周刊/差异/新曲/新曲20240831与新曲20240830.xlsx'
+    today = 20240906
+    file_path = 'E:/Programming/python/bilibili日V周刊/差异/新曲/新曲20240907与新曲20240906.xlsx'
 
     today_date = datetime.strptime(str(today), "%Y%m%d")
     previous_day_date = today_date - timedelta(days=1)
     next_day_date = today_date + timedelta(days=1)
 
-    previous_rank_path = f'E:/Programming/python/bilibili日V周刊/新曲榜/新曲{today_date.strftime("%Y%m%d")}与新曲{previous_day_date.strftime("%Y%m%d")}.xlsx'
-    output_path = f'新曲榜/新曲{next_day_date.strftime("%Y%m%d")}与新曲{today_date.strftime("%Y%m%d")}.xlsx'
+    previous_rank_path = f'E:/Programming/python/bilibili日V周刊/新曲榜/新曲榜{today_date.strftime("%Y%m%d")}与{previous_day_date.strftime("%Y%m%d")}.xlsx'
+    output_path = f'新曲榜/新曲榜{next_day_date.strftime("%Y%m%d")}与{today_date.strftime("%Y%m%d")}.xlsx'
 
     df, previous_rank_df = load_data(today, file_path, previous_rank_path)
     df = df[['title', 'bvid', 'name', 'author', 'uploader', 'copyright', 'synthesizer', 'vocal', 'type', 'pubdate', 'duration', 'view', 'favorite', 'coin', 'like', 'viewR', 'favoriteR', 'coinR', 'likeR', 'point', 'image_url']]

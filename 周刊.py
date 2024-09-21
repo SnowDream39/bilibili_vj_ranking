@@ -1,13 +1,14 @@
 import asyncio
+import os
 import pandas as pd
 from math import ceil, floor
-from datetime import datetime
+from datetime import datetime, timedelta
 from openpyxl import Workbook
 
-old_time_data = '20240801'
-new_time_data = '20240901'
-target_month = '2024-08'  # 目标月份
-
+old_time_data = '20240831'
+new_time_data = '20240907'
+target_week = '2024-09-07'  # 截止的周六
+previous_week = f"{old_time_data[:4]}-{old_time_data[4:6]}-{old_time_data[6:]}"
 def read_data(file_path, columns=None):
     return pd.read_excel(file_path, usecols=columns)
 
@@ -15,11 +16,11 @@ def calculate_differences(new, old):
     return {col: new[col] - old.get(col, 0) for col in ['view', 'favorite', 'coin', 'like']}
 
 def calculate_scores(view, favorite, coin, like, hascopyright):
-    viewR = 0 if view == 0 else max(ceil(min(max((coin + favorite), 0) * 25 / view, 1) * 100) / 100, 0)
-    favoriteR = 0 if favorite <= 0 else max(ceil(min(max(favorite + 2 * coin, 0) * 10 / (favorite * 15 + view) * 30, 20) * 100) / 100, 0)
-    coinR = 0 if (1 if hascopyright in [1, 3] else 2) * coin * 40 + view == 0 else max(ceil(min(((1 if hascopyright in [1, 3] else 2) * coin * 40) / ((1 if hascopyright in [1, 3] else 2) * coin * 30 + view) * 80, 40) * 100) / 100, 0)
+    viewR = 0 if view == 0 else max(ceil(min(max((coin + favorite), 0) * 20 / view, 1) * 100) / 100, 0)
+    favoriteR = 0 if favorite <= 0 else max(ceil(min(max(favorite + 2 * coin, 0) * 10 / (favorite * 20 + view) * 40, 20) * 100) / 100, 0)
+    coinR = 0 if (1 if hascopyright in [1, 3] else 2) * coin * 40 + view == 0 else max(ceil(min(((1 if hascopyright in [1, 3] else 2) * coin * 40) / ((1 if hascopyright in [1, 3] else 2) * coin * 40 + view) * 80, 40) * 100) / 100, 0)
     likeR = 0 if like <= 0 else max(floor(max(coin + favorite, 0) / (like * 20 + view) * 100 * 100) / 100, 0)
-
+    
     return viewR, favoriteR, coinR, likeR
 
 def format_scores(viewR, favoriteR, coinR, likeR):
@@ -86,12 +87,22 @@ def save_to_excel(df, filename, adjust_width=True):
                 max_length = max(df[col].astype(str).map(len).max(), len(col)) + 2
                 worksheet.column_dimensions[worksheet.cell(row=1, column=i).column_letter].width = max_length
 
-def filter_new_songs(info_list, top_20_bvids):
+def get_week_start_end(target_week):
+    end_date = datetime.strptime(target_week, "%Y-%m-%d %H:%M:%S")
+    start_date = end_date - timedelta(days=14)
+    return start_date, end_date
+
+def filter_new_songs(info_list, top_20_bvids, target_week):
+    start_date, end_date = get_week_start_end(f'{target_week} 00:00:00')
+    
     new_songs_list = []
     for record in info_list:
-        pubdate = str(record[9])
+        pubdate_str = str(record[9])
         bvid = record[1]
-        if target_month in pubdate and bvid not in top_20_bvids:
+        pubdate = datetime.strptime(pubdate_str, "%Y-%m-%d %H:%M:%S")
+        
+        # 过滤时间在start_date到end_date之间的新曲
+        if start_date <= pubdate < end_date and bvid not in top_20_bvids:
             new_songs_list.append(record)
     
     new_songs_df = pd.DataFrame(new_songs_list, columns=['title', 'bvid', 'name', 'author', 'uploader', 'copyright', 'synthesizer', 'vocal', 'type', 'pubdate', 'duration', 'view', 'favorite', 'coin', 'like', 'viewR', 'favoriteR', 'coinR', 'likeR', 'point', 'image_url'])
@@ -106,7 +117,25 @@ def filter_new_songs(info_list, top_20_bvids):
     
     return new_songs_df
 
-def main_processing(old_data_path, new_data_path, output_path, new_songs_output_path):
+def update_count(df_today, today_date):
+    """计算本期歌曲上榜次数"""
+    
+    prev_file_path = f'周刊/总榜/{previous_week}.xlsx'
+    
+    if os.path.exists(prev_file_path):
+        df_prev = pd.read_excel(prev_file_path)
+        if 'count' not in df_prev.columns:
+            df_prev['count'] = 0  
+    else:
+        df_prev = pd.DataFrame(columns=['bvid', 'count'])
+
+    prev_count_dict = dict(zip(df_prev['bvid'], df_prev['count']))
+    
+    df_today['count'] = df_today.apply(lambda row: prev_count_dict.get(row['bvid'], 0) + (1 if row['rank'] <= 20 else 0), axis=1)
+    
+    return df_today
+
+def main_processing(old_data_path, new_data_path, output_path, new_songs_output_path, today_date):
     columns = ['bvid', 'video_title', 'title', 'author', 'uploader', 'copyright', 'synthesizer', 'vocal', 'type', 'pubdate', 'duration', 'view', 'favorite', 'coin', 'like', 'image_url']
     old_data = read_data(old_data_path, columns=columns)
     new_data = read_data(new_data_path, columns=columns)
@@ -119,34 +148,32 @@ def main_processing(old_data_path, new_data_path, output_path, new_songs_output_
         # 处理总榜
         stock_list = pd.DataFrame(info_list, columns=['title', 'bvid', 'name', 'author', 'uploader', 'copyright', 'synthesizer', 'vocal', 'type', 'pubdate', 'duration', 'view', 'favorite', 'coin', 'like', 'viewR', 'favoriteR', 'coinR', 'likeR', 'point', 'image_url'])
         stock_list = stock_list.sort_values('point', ascending=False)
-
-        # 计算总榜排名
+        
         stock_list['view_rank'] = stock_list['view'].rank(ascending=False, method='min')
         stock_list['favorite_rank'] = stock_list['favorite'].rank(ascending=False, method='min')
         stock_list['coin_rank'] = stock_list['coin'].rank(ascending=False, method='min')
         stock_list['like_rank'] = stock_list['like'].rank(ascending=False, method='min')
         stock_list['rank'] = stock_list['point'].rank(ascending=False, method='min')
-      
+        
+        stock_list = update_count(stock_list, today_date)
+        
         save_to_excel(stock_list, output_path)
-       
-        # 处理新曲榜
-        top_20_bvids = stock_list.head(20)['bvid'].tolist()
-        new_songs_df = filter_new_songs(info_list, top_20_bvids)
- 
+
+        # 筛选新曲
+        new_songs_df = filter_new_songs(info_list, stock_list[stock_list['count'] > 0]['bvid'].tolist(), target_week)
+
         if not new_songs_df.empty:
             save_to_excel(new_songs_df, new_songs_output_path)
             print(f"处理完成，新曲榜已输出到 {new_songs_output_path}")
 
         print(f"处理完成，已输出到{output_path}")
+    else:
+        print("No valid data found.")
 
-async def main() -> None:
-    await asyncio.gather(
-        asyncio.to_thread(main_processing, 
-                          f'数据/{old_time_data}.xlsx', 
-                          f'数据/{new_time_data}.xlsx', 
-                          f"月榜/总榜/{target_month}.xlsx",
-                          f"月榜/新曲榜/新曲{target_month}.xlsx")
-    )
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main_processing( f'数据/{old_time_data}.xlsx', 
+                     f'数据/{new_time_data}.xlsx', 
+                     f"周刊/总榜/{target_week}.xlsx",
+                     f"周刊/新曲榜/新曲{target_week}.xlsx",
+                     new_time_data)

@@ -5,11 +5,11 @@ from openpyxl.utils import get_column_letter
 from datetime import datetime, timedelta
 
 def main():
-    existed_song1 = '20240831'
-    existed_song2 = '20240830'
-    new_song1 = '新曲20240831'
-    new_song2 = '新曲20240830'
-    today_date = 20240830
+    existed_song1 = '20240907'
+    existed_song2 = '20240906'
+    new_song1 = '新曲20240907'
+    new_song2 = '新曲20240906'
+    today_date = 20240906
     
     combined_df = read_and_combine_sheets(existed_song1, existed_song2, new_song1, new_song2)
     combined_df = calculate_ranks(combined_df)
