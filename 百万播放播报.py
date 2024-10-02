@@ -1,8 +1,17 @@
 import pandas as pd
 import openpyxl
+from datetime import datetime, timedelta
 
-date1 = "20240921"
+modes = ["any", "week"]
+
+# 0为any，1为week
+mode = 1 
 date2 = "20240928"
+
+if mode == 0: 
+    date1 = "20240921"
+else: 
+    date1 = (datetime.strptime(date2, "%Y%m%d") - timedelta(days=7)).strftime("%Y%m%d")
 
 def adjust_column_width(writer, sheet_name):
     worksheet = writer.sheets[sheet_name]
@@ -73,7 +82,12 @@ def record_million_view_change(date1, date2):
     
     df_export = df_export.sort_values(by='million_crossed', ascending=False)
     
-    output_file = f"百万/百万记录{date2}与{date1}.xlsx"
+
+    if mode == 0:
+        output_file = f"百万/百万记录{date2}与{date1}.xlsx"
+    else:
+        output_file = f"百万/百万记录{date2[:4]}-{date2[4:6]}-{date2[6:]}.xlsx"
+    
     with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
         df_export.to_excel(writer, index=False, sheet_name='百万播放记录')
         adjust_column_width(writer, '百万播放记录')
