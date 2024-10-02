@@ -65,6 +65,7 @@ def record_million_view_change(date1, date2):
                         'bvid': row['bvid'],
                         'title': row['title'],
                         'author': row['author'],
+                        'pubdate': row['pubdate'],
                         'million_crossed': million 
                     })
         else:
@@ -75,6 +76,7 @@ def record_million_view_change(date1, date2):
                         'bvid': row['bvid'],
                         'title': row['title'],
                         'author': row['author'],
+                        'pubdate': row['pubdate'],
                         'million_crossed': million  
                     })
 
