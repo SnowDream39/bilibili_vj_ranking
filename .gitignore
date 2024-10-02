@@ -2,6 +2,7 @@ bilibili日V周刊.sln
 bilibili日V周刊.pyproj
 __pycache__/
 .editorconfig
+.gitignore
 收录曲目.xlsx
 .vs/
 差异/
