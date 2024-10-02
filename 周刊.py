@@ -5,9 +5,9 @@ from math import ceil, floor
 from datetime import datetime, timedelta
 from openpyxl import Workbook
 
-old_time_data = '20240831'
-new_time_data = '20240907'
-target_week = '2024-09-07'  # 截止的周六
+old_time_data = '20240921'
+new_time_data = '20240928'
+target_week = '2024-09-28'  # 截止的周六
 previous_week = f"{old_time_data[:4]}-{old_time_data[4:6]}-{old_time_data[6:]}"
 def read_data(file_path, columns=None):
     return pd.read_excel(file_path, usecols=columns)

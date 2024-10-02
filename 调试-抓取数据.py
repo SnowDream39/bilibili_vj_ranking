@@ -12,7 +12,7 @@ class SongDataFetcher:
         self.info_list = []
         self.error_list = []
         self.data_list = []
-        self.semaphore = asyncio.Semaphore(5)  # 限制并发任务数为5
+        self.semaphore = asyncio.Semaphore(50)  # 限制并发任务数为5
 
     def run_script_in_new_window(self, script):
         subprocess.Popen(['start', 'cmd', '/k', f'python {script}'], shell=True)
@@ -42,7 +42,11 @@ class SongDataFetcher:
             owner_data = info.get('owner')
             duration = self.convert_duration(info.get('duration'))
             image_url = info.get('pic')  # 获取视频的封面图片链接
-
+            video_title = info.get('title')  # 获取视频标题
+            uploader = owner_data.get('name')  # 获取上传者用户名
+            copyright = info.get('copyright')  # 获取版权信息
+            pubdate = datetime.fromtimestamp(info['pubdate'])
+            pubdate = pubdate.strftime('%Y-%m-%d %H:%M:%S')  # 格式化日期
             if stat_data and owner_data:
                 view = stat_data.get('view')
                 favorite = stat_data.get('favorite')
@@ -50,15 +54,15 @@ class SongDataFetcher:
                 like = stat_data.get('like')
                 
                 self.info_list.append([
-                    song['Video Title'], song['BVID'], song['Title'], 
-                    song['Author'], song['Uploader'], song['Copyright'], 
-                    song['Synthesizer'], song['Vocal'], song['Type'], song['Pubdate'], 
+                    video_title, song['BVID'], video_title, 
+                    uploader, uploader, copyright,
+                    song['Synthesizer'], song['Vocal'], song['Type'], pubdate, 
                     duration, view, favorite, coin, like, image_url
                 ])
                 self.data_list.append([
-                    song['Title'], song['BVID'], song['Video Title'], 
-                    view, song['Pubdate'], song['Author'], song['Uploader'], 
-                    song['Copyright'], song['Synthesizer'], song['Vocal'], song['Type'], image_url
+                    video_title, song['BVID'], video_title, 
+                    view, pubdate, uploader, uploader, 
+                    copyright, song['Synthesizer'], song['Vocal'], song['Type'], image_url
                 ])
             else:
                 print(f"Missing data for: {song['Title']} ({song['BVID']})")
@@ -114,6 +118,6 @@ class SongDataFetcher:
         self.save_data()
 
 if __name__ == "__main__":
-    fetcher = SongDataFetcher(input_file='收录曲目.xlsx', output_dir='数据')
+    fetcher = SongDataFetcher(input_file='pjsk原创曲.xlsx', output_dir='特殊/特殊原始数据')
     loop = asyncio.get_event_loop()
     loop.run_until_complete(fetcher.run())

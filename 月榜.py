@@ -4,9 +4,9 @@ from math import ceil, floor
 from datetime import datetime
 from openpyxl import Workbook
 
-old_time_data = '20240801'
-new_time_data = '20240901'
-target_month = '2024-08'  # 目标月份
+old_time_data = '20240901'
+new_time_data = '20241001'
+target_month = '2024-09'  # 目标月份
 
 def read_data(file_path, columns=None):
     return pd.read_excel(file_path, usecols=columns)

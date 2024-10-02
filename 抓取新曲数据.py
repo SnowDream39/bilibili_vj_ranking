@@ -10,9 +10,10 @@ from bilibili_api import settings
 
 
 KEYWORDS = ["VOCALOID", "synthesizer v", "SynthV", "SV", "CeVIO", "UTAU", "VOICEROID", "VOICEPEAK", "NEUTRINO", 
-            "初音", "重音", "镜音", "鏡音", "巡音","luka","MEIKO","flower", "可不", "teto", "miku", "kafu","歌爱雪","GUMI","KAITO","IA","结月","POPY","ROSE","夢ノ結唱", "俊达萌",
-            "chinozo", "ンウヱィ窶っィグゑ齧", "rotbala", "regnore", "青杉折扇", "阿赫official","SYNZI","羊小星","精神安定剤","KitanoNani","妄想Delusions","苏维埃冰棺中的伊利亚",
-            "委蛇原_radio","kttts","珠紫MuRaSaKi","音街ウナ","SenaRinka_Alice","雨喙Beak_In_Rain","星のカケラ","Soraだよ",
+            "初音", "重音", "镜音", "鏡音", "巡音","luka","MEIKO","flower", "可不", "teto", "miku", "kafu","歌爱雪","GUMI","KAITO","IA","结月","POPY","ROSE","夢ノ結唱", 
+            "俊达萌","花隈千冬","小春六花","夏色花梨","日文","羽累","星界","狐子","SEKAI","里命","裏命","カゼヒキ","ゲキヤク","鳴花",
+            "chinozo", "rotbala", "regnore", "青杉折扇", "阿赫official","SYNZI","羊小星","精神安定剤","KitanoNani","妄想Delusions","苏维埃冰棺中的伊利亚",
+            "委蛇原_radio","kttts","珠紫MuRaSaKi","音街ウナ","SenaRinka_Alice","雨喙Beak_In_Rain","星のカケラ","Soraだよ","BoringCoumselor",
             "ゆりがさきなな","SILVIA____","trance羯","911","等待呢歌","BILI君的音樂工房","折射","唯爱阿萌","牛牛蝎羯","白羽沉","【存在抹消】"]
 
 class BilibiliScraper:
@@ -131,6 +132,7 @@ class BilibiliScraper:
                     print(f"Skipping video with duration less than 20 seconds: {bvid}")
                     return None
                 pubdate = datetime.fromtimestamp(info['pubdate'])
+                page = len(info['pages'])
                 return {
                     'video_title': self.clean_html_tags(info['title']),
                     'bvid': bvid,
@@ -138,11 +140,12 @@ class BilibiliScraper:
                     'copyright': info['copyright'],
                     'pubdate': pubdate.strftime('%Y-%m-%d %H:%M:%S'),
                     'duration': self.convert_duration(duration_seconds),
+                    'page': page,
                     'view': info['stat']['view'],
                     'favorite': info['stat']['favorite'],
                     'coin': info['stat']['coin'],
                     'like': info['stat']['like'],
-                    'image_url': info['pic']
+                    'image_url': info['pic'],
                 }
             except Exception as e:
                 print(f"Error fetching details for BVID: {bvid}, attempt {attempt + 1}/{self.max_retries}, Error: {e}")
@@ -182,7 +185,7 @@ class BilibiliScraper:
         df = pd.DataFrame(videos)
         df = df.sort_values(by='view', ascending=False)
 
-        df = df[['video_title', 'bvid', 'title', 'author', 'uploader', 'copyright', 'synthesizer', 'vocal', 'type', 'pubdate', 'duration', 'view', 'favorite', 'coin', 'like', 'image_url']]
+        df = df[['video_title', 'bvid', 'title', 'author', 'uploader', 'copyright', 'synthesizer', 'vocal', 'type', 'pubdate', 'duration', 'page', 'view', 'favorite', 'coin', 'like', 'image_url']]
 
         filename = f"新曲数据/新曲{self.today.strftime('%Y%m%d')}.xlsx"
 

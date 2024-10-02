@@ -86,8 +86,8 @@ def update_plot(*args):
             max_value = 500
             max_value_entry.delete(0, tk.END)
             max_value_entry.insert(0, str(max_value))
-        elif max_value > 500000:
-            max_value = 500000
+        elif max_value > 10000000:
+            max_value = 10000000
             max_value_entry.delete(0, tk.END)
             max_value_entry.insert(0, str(max_value))
 

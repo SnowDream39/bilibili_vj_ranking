@@ -12,7 +12,7 @@ from bilibili_api import settings
 KEYWORDS = ["VOCALOID", "synthesizer v", "SynthV", "SV", "CeVIO", "UTAU", "VOICEROID", "VOICEPEAK", "NEUTRINO", 
             "初音", "重音", "镜音", "鏡音", "巡音","luka","MEIKO","flower", "可不", "teto", "miku", "kafu","歌爱雪","GUMI","KAITO","IA","结月","POPY","ROSE","夢ノ結唱", "俊达萌",
             "chinozo", "ンウヱィ窶っィグゑ齧", "rotbala", "regnore", "青杉折扇", "阿赫official","SYNZI","羊小星","精神安定剤","KitanoNani","妄想Delusions","苏维埃冰棺中的伊利亚",
-            "委蛇原_radio","kttts","珠紫MuRaSaKi","音街ウナ","SenaRinka_Alice","雨喙Beak_In_Rain","星のカケラ","Soraだよ",
+            "委蛇原_radio","kttts","珠紫MuRaSaKi","音街ウナ","SenaRinka_Alice","雨喙Beak_In_Rain","星のカケラ","Soraだよ","bili_75438929376","枝田摩","DefokoQ",
             "ゆりがさきなな","SILVIA____","trance羯","911","等待呢歌","BILI君的音樂工房","折射","唯爱阿萌","牛牛蝎羯","白羽沉","【存在抹消】"]
 
 class BilibiliScraper:

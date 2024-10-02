@@ -1,7 +1,7 @@
 import asyncio
 import subprocess
 import pandas as pd
-from datetime import datetime,timedelta
+from datetime import datetime, timedelta
 from bilibili_api import video
 
 class SongDataFetcher:
@@ -12,8 +12,7 @@ class SongDataFetcher:
         self.info_list = []
         self.error_list = []
         self.data_list = []
-        self.semaphore = asyncio.Semaphore(5)  # 限制并发任务数为10
-        self.today = datetime.now().replace(hour=0,minute=0,second=0,microsecond=0) + timedelta(days=1)
+        self.semaphore = asyncio.Semaphore(5) 
 
     def run_script_in_new_window(self, script):
         subprocess.Popen(['start', 'cmd', '/k', f'python {script}'], shell=True)
@@ -41,9 +40,11 @@ class SongDataFetcher:
 
             stat_data = info.get('stat')
             owner_data = info.get('owner')
+
+            video_title = info.get('title')
             duration = self.convert_duration(info.get('duration'))
-            image_url = info.get('pic')  # 获取视频的封面图片链接
-            
+            page = info.get('pages')
+            image_url = info.get('pic')  
             if stat_data and owner_data:
                 view = stat_data.get('view')
                 favorite = stat_data.get('favorite')
@@ -51,13 +52,13 @@ class SongDataFetcher:
                 like = stat_data.get('like')
                 
                 self.info_list.append([
-                    song['Video Title'], song['BVID'], song['Title'], 
-                    song['Author'], song['Uploader'], song['Copyright'], 
+                    video_title, song['BVID'], song['Title'], 
+                    song['Author'], song['Uploader'], song['Copyright'],
                     song['Synthesizer'], song['Vocal'], song['Type'], song['Pubdate'], 
-                    duration, view, favorite, coin, like, image_url
+                    duration, page, view, favorite, coin, like, image_url
                 ])
                 self.data_list.append([
-                    song['Title'], song['BVID'], song['Video Title'], 
+                    song['Title'], song['BVID'], video_title, 
                     view, song['Pubdate'], song['Author'], song['Uploader'], 
                     song['Copyright'], song['Synthesizer'], song['Vocal'], song['Type'], image_url
                 ])
@@ -69,7 +70,7 @@ class SongDataFetcher:
     async def fetch_all_stats(self):
         await self.run_tasks_with_retries(self.songs.index)
 
-    async def run_tasks_with_retries(self, indices, max_retries=5):
+    async def run_tasks_with_retries(self, indices, max_retries=10):
         for attempt in range(max_retries):
             tasks = [self.fetch_song_stat(i) for i in indices]
             await asyncio.gather(*tasks)
@@ -84,9 +85,10 @@ class SongDataFetcher:
             stock_list = pd.DataFrame(self.info_list, columns=[
                 'video_title', 'bvid', 'title', 'author', 'uploader', 
                 'copyright', 'synthesizer', 'vocal', 'type', 'pubdate', 
-                'duration', 'view', 'favorite', 'coin', 'like', 'image_url'
+                'duration', 'page', 'view', 'favorite', 'coin', 'like', 'image_url'
             ])
-            filename = f"{self.output_dir}/{self.today.strftime('%Y%m%d')}.xlsx"
+            filename = f"{self.output_dir}/{(datetime.now() + timedelta(days=1) if datetime.now().hour >= 23 else datetime.now()).strftime('%Y%m%d')}.xlsx"
+
             stock_list.to_excel(filename, index=False)
             print(f"处理完成，数据已保存到 {filename}")
 
