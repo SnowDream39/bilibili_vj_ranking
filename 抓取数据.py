@@ -43,7 +43,7 @@ class SongDataFetcher:
 
             video_title = info.get('title')
             duration = self.convert_duration(info.get('duration'))
-            page = info.get('pages')
+            page = len(info.get('pages'))
             image_url = info.get('pic')  
             if stat_data and owner_data:
                 view = stat_data.get('view')

@@ -60,6 +60,7 @@ def process_records(records, old_data, new_data):
             uploader = new['uploader']
             hascopyright = new['copyright']
             duration = new['duration']
+            page = new['page']
             synthesizer = new['synthesizer']
             vocal = new['vocal']
             type = new['type']
@@ -70,7 +71,7 @@ def process_records(records, old_data, new_data):
             viewR, favoriteR, coinR, likeR = format_scores(viewR, favoriteR, coinR, likeR)
             point = calculate_points(diff['view'], diff['favorite'], diff['coin'], diff['like'], float(viewR), float(favoriteR), float(coinR), float(likeR))
 
-            info_list.append([title, bvid, name, author, uploader, hascopyright, synthesizer, vocal, type, pubdate, duration, diff['view'], diff['favorite'], diff['coin'], diff['like'], viewR, favoriteR, coinR, likeR, point, image_url])
+            info_list.append([title, bvid, name, author, uploader, hascopyright, synthesizer, vocal, type, pubdate, duration, page, diff['view'], diff['favorite'], diff['coin'], diff['like'], viewR, favoriteR, coinR, likeR, point, image_url])
         
         except Exception as e:
             print(f"Error fetching info for bvid {bvid}: {e}")
@@ -94,7 +95,7 @@ def filter_new_songs(info_list, top_20_bvids):
         if target_month in pubdate and bvid not in top_20_bvids:
             new_songs_list.append(record)
     
-    new_songs_df = pd.DataFrame(new_songs_list, columns=['title', 'bvid', 'name', 'author', 'uploader', 'copyright', 'synthesizer', 'vocal', 'type', 'pubdate', 'duration', 'view', 'favorite', 'coin', 'like', 'viewR', 'favoriteR', 'coinR', 'likeR', 'point', 'image_url'])
+    new_songs_df = pd.DataFrame(new_songs_list, columns=['title', 'bvid', 'name', 'author', 'uploader', 'copyright', 'synthesizer', 'vocal', 'type', 'pubdate', 'duration', 'page', 'view', 'favorite', 'coin', 'like', 'viewR', 'favoriteR', 'coinR', 'likeR', 'point', 'image_url'])
     new_songs_df = new_songs_df.sort_values('point', ascending=False)
     
     # 计算排名
@@ -107,7 +108,7 @@ def filter_new_songs(info_list, top_20_bvids):
     return new_songs_df
 
 def main_processing(old_data_path, new_data_path, output_path, new_songs_output_path):
-    columns = ['bvid', 'video_title', 'title', 'author', 'uploader', 'copyright', 'synthesizer', 'vocal', 'type', 'pubdate', 'duration', 'view', 'favorite', 'coin', 'like', 'image_url']
+    columns = ['bvid', 'video_title', 'title', 'author', 'uploader', 'copyright', 'synthesizer', 'vocal', 'type', 'pubdate', 'duration', 'page', 'view', 'favorite', 'coin', 'like', 'image_url']
     old_data = read_data(old_data_path, columns=columns)
     new_data = read_data(new_data_path, columns=columns)
 
@@ -117,7 +118,7 @@ def main_processing(old_data_path, new_data_path, output_path, new_songs_output_
     
     if info_list:
         # 处理总榜
-        stock_list = pd.DataFrame(info_list, columns=['title', 'bvid', 'name', 'author', 'uploader', 'copyright', 'synthesizer', 'vocal', 'type', 'pubdate', 'duration', 'view', 'favorite', 'coin', 'like', 'viewR', 'favoriteR', 'coinR', 'likeR', 'point', 'image_url'])
+        stock_list = pd.DataFrame(info_list, columns=['title', 'bvid', 'name', 'author', 'uploader', 'copyright', 'synthesizer', 'vocal', 'type', 'pubdate', 'duration', 'page', 'view', 'favorite', 'coin', 'like', 'viewR', 'favoriteR', 'coinR', 'likeR', 'point', 'image_url'])
         stock_list = stock_list.sort_values('point', ascending=False)
 
         # 计算总榜排名
