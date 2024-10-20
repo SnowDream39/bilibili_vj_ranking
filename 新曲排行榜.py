@@ -2,21 +2,20 @@ import pandas as pd
 from datetime import datetime, timedelta
 
 def main():
-    today = 20241001
-    file_path = 'E:/Programming/python/bilibili日V周刊/差异/新曲/新曲20241002与新曲20241001.xlsx'
+    today = 20241019
+    now_time_data = datetime.strptime(str(today), '%Y%m%d').strftime('%Y%m%d')
+    new_time_data = (datetime.strptime(str(today), '%Y%m%d') + timedelta(days=1)).strftime('%Y%m%d')
+    old_time_data = (datetime.strptime(str(today), '%Y%m%d') - timedelta(days=1)).strftime('%Y%m%d')
+    
+    file_path = f'E:/Programming/python/bilibili日V周刊/差异/新曲/新曲{new_time_data}与新曲{now_time_data}.xlsx'
+    previous_rank_path = f'E:/Programming/python/bilibili日V周刊/新曲榜/新曲榜{now_time_data}与{old_time_data}.xlsx'
+    output_path = f'新曲榜/新曲榜{new_time_data}与{now_time_data}.xlsx'
 
-    today_date = datetime.strptime(str(today), "%Y%m%d")
-    previous_day_date = today_date - timedelta(days=1)
-    next_day_date = today_date + timedelta(days=1)
-
-    previous_rank_path = f'E:/Programming/python/bilibili日V周刊/新曲榜/新曲榜{today_date.strftime("%Y%m%d")}与{previous_day_date.strftime("%Y%m%d")}.xlsx'
-    output_path = f'新曲榜/新曲榜{next_day_date.strftime("%Y%m%d")}与{today_date.strftime("%Y%m%d")}.xlsx'
-
-    df, previous_rank_df = load_data(today, file_path, previous_rank_path)
+    df, previous_rank_df = load_data(file_path, previous_rank_path)
     df = df[['title', 'bvid', 'name', 'author', 'uploader', 'copyright', 'synthesizer', 'vocal', 'type', 'pubdate', 'duration', 'page', 'view', 'favorite', 'coin', 'like', 'viewR', 'favoriteR', 'coinR', 'likeR', 'point', 'image_url']]
     previous_rank_df = previous_rank_df[['name', 'highest_rank']]
 
-    df = filter_recent_songs(df, today_date)
+    df = filter_recent_songs(df, now_time_data)
     new_ranking_df = calculate_rankings(df, previous_rank_df)
     new_ranking_df = add_rank_columns(new_ranking_df)
 
@@ -24,24 +23,21 @@ def main():
     final_ranking = format_columns(final_ranking)
     save_to_excel(final_ranking, output_path)
 
-def load_data(today, file_path, previous_rank_path):
+def load_data(file_path, previous_rank_path):
     xls = pd.ExcelFile(file_path)
     df = pd.read_excel(xls, 'Sheet1')
     previous_rank_df = pd.read_excel(previous_rank_path)
     return df, previous_rank_df
 
 def filter_recent_songs(df, today_date):
-    # 检查 pubdate 列的类型，如果是字符串则进行转换
     if df['pubdate'].dtype == 'O': 
         df['pubdate'] = pd.to_datetime(df['pubdate'])
     
-    # 只收录两天内的新曲
     start_date = today_date - timedelta(days=1)
     end_date = today_date + timedelta(days=1)
     return df[(df['pubdate'] >= start_date) & (df['pubdate'] < end_date)]
 
 def calculate_rankings(df, previous_rank_df):
-    # 计算新曲排行榜，只收录排名上升的歌曲
     df = df.sort_values(by='point', ascending=False).reset_index(drop=True)
     df['rank'] = df.index + 1
 

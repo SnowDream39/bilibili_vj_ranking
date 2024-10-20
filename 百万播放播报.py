@@ -1,15 +1,13 @@
 import pandas as pd
-import openpyxl
 from datetime import datetime, timedelta
 
-modes = ["any", "week"]
+# modes = ["any", "week"]
 
-# 0为any，1为week
-mode = 1 
-date2 = "20240928"
+mode = 0
+date2 = "20241020"
 
 if mode == 0: 
-    date1 = "20240921"
+    date1 = "20241019"
 else: 
     date1 = (datetime.strptime(date2, "%Y%m%d") - timedelta(days=7)).strftime("%Y%m%d")
 

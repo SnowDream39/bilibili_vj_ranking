@@ -1,9 +1,8 @@
+# 根据总体数据计算生成榜单
 import pandas as pd
 from math import ceil, floor
-from datetime import datetime
-from openpyxl import Workbook
 
-song_data = 'prsk'
+song_data = '春岚'
 
 def read_data(file_path, columns=None):
     return pd.read_excel(file_path, usecols=columns)

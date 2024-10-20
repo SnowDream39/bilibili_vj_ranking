@@ -5,36 +5,36 @@ from openpyxl.utils import get_column_letter
 from datetime import datetime, timedelta
 
 def main():
-    existed_song1 = '20241002'
-    existed_song2 = '20241001'
-    new_song1 = '新曲20241002'
-    new_song2 = '新曲20241001'
-    today_date = 20241001
+    today_date = 20241019 # 旧曲日期
     
-    combined_df = read_and_combine_sheets(existed_song1, existed_song2, new_song1, new_song2)
+    old_time_toll = datetime.strptime(str(today_date), '%Y%m%d').strftime('%Y%m%d')
+    new_time_toll = (datetime.strptime(str(today_date), '%Y%m%d') + timedelta(days=1)).strftime('%Y%m%d')
+    
+    old_time_new = f'新曲{old_time_toll}'
+    new_time_new = f'新曲{new_time_toll}'
+    
+    combined_df = read_and_combine_sheets(new_time_toll, old_time_toll, new_time_new, old_time_new)
     combined_df = calculate_ranks(combined_df)
     combined_df = format_r_columns(combined_df)
     combined_df = update_count(combined_df, today_date)
     
-    save_to_excel(combined_df, f'差异/合并表格/{existed_song1}与{existed_song2}.xlsx')
+    save_to_excel(combined_df, f'差异/合并表格/{new_time_toll}与{old_time_toll}.xlsx')
 
-    df3 = pd.read_excel(f'新曲数据/{new_song1}.xlsx')
-    updated_df1 = process_new_songs(combined_df, df3, existed_song1)
-    save_to_excel(updated_df1, f'数据/{existed_song1}.xlsx', adjust_width=False)
+    df3 = pd.read_excel(f'新曲数据/{new_time_new}.xlsx')
+    updated_df1 = process_new_songs(combined_df, df3, new_time_toll)
+    save_to_excel(updated_df1, f'数据/{new_time_toll}.xlsx', adjust_width=False)
 
     updated_existing_songs = update_existing_songs(combined_df)
     save_to_excel(updated_existing_songs, '收录曲目.xlsx', adjust_width=False)
     
-def read_and_combine_sheets(existed_song1, existed_song2, new_song1, new_song2):
+def read_and_combine_sheets(new_time_toll, old_time_toll, new_time_new, old_time_new):
     """合并新旧曲日增文件"""
     
-    existed_song = f'{existed_song1}与{existed_song2}'
-    new_song = f'{new_song1}与{new_song2}'
-
-    df1 = pd.read_excel(f'差异/非新曲/{existed_song}.xlsx')
-    df2 = pd.read_excel(f'差异/新曲/{new_song}.xlsx')
+    df1 = pd.read_excel(f'差异/非新曲/{new_time_toll}与{old_time_toll}.xlsx')
+    df2 = pd.read_excel(f'差异/新曲/{new_time_new}与{old_time_new}.xlsx')
 
     combined_df = pd.concat([df1, df2]).drop_duplicates(subset=['bvid'], keep='last')
+    combined_df = merge_duplicate_names(combined_df)
     return combined_df
 
 def calculate_ranks(df):
@@ -72,11 +72,26 @@ def update_count(df_today, today_date):
     
     return df_today
 
+def merge_duplicate_names(df):
+    '''合并同名歌曲, 保留最高分'''
+    merged_df = pd.DataFrame()
+    
+    grouped = df.groupby('name')
+    
+    for group in grouped:
+        if len(group) > 1:
+            best_record = group.loc[group['point'].idxmax()].copy()
+            
+            merged_df = pd.concat([merged_df, best_record.to_frame().T])
+        else:
+            merged_df = pd.concat([merged_df, group])
+    
+    return merged_df
 
 def save_to_excel(df, filename, adjust_width=True):
     """格式化保存文件"""
+    
     with pd.ExcelWriter(filename, engine='openpyxl') as writer:
-        # 将pubdate列转换为字符串并格式化为"yyyy-mm-dd hh:mm:sss"
         if 'pubdate' in df.columns:
             df['pubdate'] = pd.to_datetime(df['pubdate'], errors='coerce')
             df['pubdate'] = df['pubdate'].apply(lambda x: x.strftime('%Y-%m-%d %H:%M:%S') if not pd.isnull(x) else '')
@@ -86,7 +101,7 @@ def save_to_excel(df, filename, adjust_width=True):
 
         worksheet = writer.sheets['Sheet1']
         if 'pubdate' in df.columns:
-            pubdate_col_idx = df.columns.get_loc('pubdate') + 1  # get_loc is 0-based, columns are 1-based
+            pubdate_col_idx = df.columns.get_loc('pubdate') + 1  # 加1是因为openpyxl的索引从1开始
             pubdate_col_letter = get_column_letter(pubdate_col_idx)
             for cell in worksheet[pubdate_col_letter]:
                 cell.alignment = Alignment(horizontal='left')

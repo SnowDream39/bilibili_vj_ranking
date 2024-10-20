@@ -26,13 +26,13 @@ class SongDataFetcher:
             return f'{seconds}秒'
 
     async def fetch_song_stat(self, i):
-        async with self.semaphore:  # 使用信号量控制并发数量
+        async with self.semaphore:  
             song = self.songs.loc[i]
             print(f"Fetching data for: {song['Title']} ({song['BVID']})")
             v = video.Video(bvid=song['BVID'])
             try:
                 info = await v.get_info()
-                await asyncio.sleep(0.1)  # 添加延迟，避免请求过于频繁
+                await asyncio.sleep(0.1)  
             except Exception as e:
                 print(f"Error fetching data for: {song['Title']} ({song['BVID']}), error: {e}")
                 self.error_list.append(i)
@@ -42,6 +42,7 @@ class SongDataFetcher:
             owner_data = info.get('owner')
 
             video_title = info.get('title')
+            uploader = owner_data.get('name')
             duration = self.convert_duration(info.get('duration'))
             page = len(info.get('pages'))
             image_url = info.get('pic')  
@@ -53,19 +54,19 @@ class SongDataFetcher:
                 
                 self.info_list.append([
                     video_title, song['BVID'], song['Title'], 
-                    song['Author'], song['Uploader'], song['Copyright'],
+                    song['Author'], uploader, song['Copyright'],
                     song['Synthesizer'], song['Vocal'], song['Type'], song['Pubdate'], 
                     duration, page, view, favorite, coin, like, image_url
                 ])
                 self.data_list.append([
                     song['Title'], song['BVID'], video_title, 
-                    view, song['Pubdate'], song['Author'], song['Uploader'], 
+                    view, song['Pubdate'], song['Author'], uploader, 
                     song['Copyright'], song['Synthesizer'], song['Vocal'], song['Type'], image_url
                 ])
             else:
                 print(f"Missing data for: {song['Title']} ({song['BVID']})")
                 self.error_list.append(i)
-            await asyncio.sleep(0.8)  # 每次执行任务后等待0.8秒
+            await asyncio.sleep(0.8) 
 
     async def fetch_all_stats(self):
         await self.run_tasks_with_retries(self.songs.index)
@@ -93,20 +94,17 @@ class SongDataFetcher:
             print(f"处理完成，数据已保存到 {filename}")
 
         if self.data_list:
-            # 创建 DataFrame
+           
             new_stock_list = pd.DataFrame(self.data_list, columns=[
                 'Title', 'BVID', 'Video Title', 'View', 'Pubdate', 
                 'Author', 'Uploader', 'Copyright', 'Synthesizer', 'Vocal', 'Type', 'image_url'
             ])
             new_stock_list = new_stock_list.sort_values(by='View', ascending=False)
 
-            # 读取原始数据
             original_songs = pd.read_excel(self.input_file)
 
-            # 合并数据
             merged_stock_list = pd.concat([original_songs, new_stock_list]).drop_duplicates(subset=['BVID'], keep='last')
 
-            # 保存数据
             merged_stock_list.to_excel(self.input_file, index=False)
             print("收录曲目已更新并按观看数排序")
         else:

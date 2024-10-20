@@ -1,8 +1,7 @@
-import asyncio
+
 import pandas as pd
 from math import ceil, floor
 from datetime import datetime
-from openpyxl import Workbook
 
 old_time_data = '20240901'
 new_time_data = '20241001'
@@ -87,6 +86,22 @@ def save_to_excel(df, filename, adjust_width=True):
                 max_length = max(df[col].astype(str).map(len).max(), len(col)) + 2
                 worksheet.column_dimensions[worksheet.cell(row=1, column=i).column_letter].width = max_length
 
+def merge_duplicate_names(df):
+    # 对name同名但bvid不同的记录，根据point选择分数最高的一个，并继承count等数据
+    merged_df = pd.DataFrame()
+    
+    grouped = df.groupby('name')
+    
+    for group in grouped:
+        if len(group) > 1:
+            best_record = group.loc[group['point'].idxmax()].copy()
+            
+            merged_df = pd.concat([merged_df, best_record.to_frame().T])
+        else:
+            merged_df = pd.concat([merged_df, group])
+    
+    return merged_df
+
 def filter_new_songs(info_list, top_20_bvids):
     new_songs_list = []
     for record in info_list:
@@ -119,6 +134,7 @@ def main_processing(old_data_path, new_data_path, output_path, new_songs_output_
     if info_list:
         # 处理总榜
         stock_list = pd.DataFrame(info_list, columns=['title', 'bvid', 'name', 'author', 'uploader', 'copyright', 'synthesizer', 'vocal', 'type', 'pubdate', 'duration', 'page', 'view', 'favorite', 'coin', 'like', 'viewR', 'favoriteR', 'coinR', 'likeR', 'point', 'image_url'])
+        stock_list = merge_duplicate_names(stock_list)
         stock_list = stock_list.sort_values('point', ascending=False)
 
         # 计算总榜排名
@@ -131,8 +147,7 @@ def main_processing(old_data_path, new_data_path, output_path, new_songs_output_
         save_to_excel(stock_list, output_path)
        
         # 处理新曲榜
-        top_20_bvids = stock_list.head(20)['bvid'].tolist()
-        new_songs_df = filter_new_songs(info_list, top_20_bvids)
+        new_songs_df = filter_new_songs(info_list, stock_list.head(20)['name'].tolist())
  
         if not new_songs_df.empty:
             save_to_excel(new_songs_df, new_songs_output_path)
@@ -140,14 +155,9 @@ def main_processing(old_data_path, new_data_path, output_path, new_songs_output_
 
         print(f"处理完成，已输出到{output_path}")
 
-async def main() -> None:
-    await asyncio.gather(
-        asyncio.to_thread(main_processing, 
-                          f'数据/{old_time_data}.xlsx', 
-                          f'数据/{new_time_data}.xlsx', 
-                          f"月榜/总榜/{target_month}.xlsx",
-                          f"月榜/新曲榜/新曲{target_month}.xlsx")
-    )
-
 if __name__ == "__main__":
-    asyncio.run(main())
+    main_processing(f'数据/{old_time_data}.xlsx', 
+                          f'数据/{new_time_data}.xlsx', 
+                          f"月刊/总榜/{target_month}.xlsx",
+                          f"月刊/新曲榜/新曲{target_month}.xlsx"
+    )
