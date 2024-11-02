@@ -5,7 +5,7 @@ from openpyxl.utils import get_column_letter
 from datetime import datetime, timedelta
 
 def main():
-    today_date = 20241019 # 旧曲日期
+    today_date = 20241101 # 旧曲日期
     
     old_time_toll = datetime.strptime(str(today_date), '%Y%m%d').strftime('%Y%m%d')
     new_time_toll = (datetime.strptime(str(today_date), '%Y%m%d') + timedelta(days=1)).strftime('%Y%m%d')
@@ -48,28 +48,45 @@ def calculate_ranks(df):
 def format_r_columns(df):
     """格式化各项补正数据"""
     
-    r_columns = ['viewR', 'favoriteR', 'coinR', 'likeR']
+    r_columns = ['viewR', 'favoriteR', 'coinR', 'likeR', 'fixA', 'fixB','fixC']
     for col in r_columns:
         df[col] = df[col].apply(lambda x: f'{x:.2f}')
     return df
 
 def update_count(df_today, today_date):
-    """计算本期歌曲上榜次数"""
+    """计算本期歌曲上榜次数并添加last_rank, last_point, rate列"""
     
     prev_date = (datetime.strptime(str(today_date), '%Y%m%d') - timedelta(days=1)).strftime("%Y%m%d")
     prev_file_path = f'差异/合并表格/{today_date}与{prev_date}.xlsx'
     
     if os.path.exists(prev_file_path):
         df_prev = pd.read_excel(prev_file_path)
+        
         if 'count' not in df_prev.columns:
             df_prev['count'] = 0  
     else:
-        df_prev = pd.DataFrame(columns=['name', 'count'])
+        df_prev = pd.DataFrame(columns=['name', 'count', 'rank', 'point'])
 
+    prev_dict = df_prev.set_index('name')[['rank', 'point']].to_dict(orient='index')
+    
+
+    # 添加rank_before和point_before列
+    df_today['rank_before'] = df_today['name'].apply(lambda x: prev_dict.get(x, {}).get('rank', '-'))
+    df_today['point_before'] = df_today['name'].apply(lambda x: prev_dict.get(x, {}).get('point', '-'))
+    
+    df_today['rate'] = df_today.apply(
+        lambda row: 'NEW' 
+        if row['point_before'] == '-' else
+        'inf' if row['point_before'] == 0 else
+        f"{(row['point'] - row['point_before']) / row['point_before']:.2%}",
+        axis=1
+    )
+
+
+    # 计算count列
     prev_count_dict = dict(zip(df_prev['name'], df_prev['count']))
-    
     df_today['count'] = df_today.apply(lambda row: prev_count_dict.get(row['name'], 0) + (1 if row['rank'] <= 20 else 0), axis=1)
-    
+
     return df_today
 
 def merge_duplicate_names(df):
@@ -78,7 +95,7 @@ def merge_duplicate_names(df):
     
     grouped = df.groupby('name')
     
-    for group in grouped:
+    for name, group in grouped:
         if len(group) > 1:
             best_record = group.loc[group['point'].idxmax()].copy()
             

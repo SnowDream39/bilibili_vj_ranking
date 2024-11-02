@@ -3,9 +3,9 @@ import pandas as pd
 from math import ceil, floor
 from datetime import datetime, timedelta
 
-old_time_data = '20241012'
-new_time_data = '20241019'
-target_week = '2024-10-19'  # 截止到周六
+old_time_data = '20241026'
+new_time_data = '20241102'
+target_week = '2024-11-02'  # 截止到周六
 previous_week = f"{old_time_data[:4]}-{old_time_data[4:6]}-{old_time_data[6:]}"
 
 def read_data(file_path, columns=None):
@@ -15,22 +15,27 @@ def calculate_differences(new, old):
     return {col: new[col] - old.get(col, 0) for col in ['view', 'favorite', 'coin', 'like']}
 
 def calculate_scores(view, favorite, coin, like, hascopyright):
-    viewR = 0 if view == 0 else max(ceil(min(max((coin + favorite), 0) * 20 / view, 1) * 100) / 100, 0)
-    favoriteR = 0 if favorite <= 0 else max(ceil(min(max(favorite + 2 * coin, 0) * 10 / (favorite * 20 + view) * 40, 20) * 100) / 100, 0)
-    coinR = 0 if (1 if hascopyright in [1, 3] else 2) * coin * 40 + view == 0 else max(ceil(min(((1 if hascopyright in [1, 3] else 2) * coin * 40) / ((1 if hascopyright in [1, 3] else 2) * coin * 40 + view) * 80, 40) * 100) / 100, 0)
-    likeR = 0 if like <= 0 else max(floor(max(coin + favorite, 0) / (like * 20 + view) * 100 * 100) / 100, 0)
+    hascopyright = 1 if hascopyright in [1, 3] else 2
+    fixA = 0 if coin <= 0 else (1 if hascopyright == 1 else ceil(max(1, (view + 20 * favorite + 40 * coin + 10 * like) / (200 * coin)) * 100) / 100)
+    fixB = 0 if view + 20 * favorite <=0 else ceil(min(1, 3 * (20 * coin + 10 * like) / (view + 20 * favorite)) * 100) / 100
+    fixC = 0 if like + favorite <= 0 else ceil(min(1, (like + favorite + 20 * coin * fixA)/(2 * like + 2 * favorite)) * 100) / 100
     
-    return viewR, favoriteR, coinR, likeR
+    viewR = 0 if view <= 0 else max(ceil(min(max((fixA * coin + favorite), 0) * 20 / view, 1) * 100) / 100, 0)
+    favoriteR = 0 if favorite <= 0 else max(ceil(min((favorite + 2 * fixA * coin) * 10 / (favorite * 20 + view) * 40, 20) * 100) / 100, 0)
+    coinR = 0 if fixA * coin * 40 + view <= 0 else max(ceil(min((fixA * coin * 40) / (fixA * coin *40 + view) * 80, 40) * 100) / 100, 0)
+    likeR = 0 if like <= 0 else max(floor(min(5, max(fixA * coin + favorite, 0) / (like * 20 + view) * 100) * 100) / 100, 0)
 
-def format_scores(viewR, favoriteR, coinR, likeR):
-    return f"{viewR:.2f}", f"{favoriteR:.2f}", f"{coinR:.2f}", f"{likeR:.2f}"
+    return viewR, favoriteR, coinR, likeR, fixA, fixB, fixC
+
+def format_scores(viewR, favoriteR, coinR, likeR,fixA, fixB, fixC):
+    return f"{viewR:.2f}", f"{favoriteR:.2f}", f"{coinR:.2f}", f"{likeR:.2f}", f"{fixA:.2f}", f"{fixB:.2f}", f"{fixC:.2f}"
 
 def calculate_points(view, favorite, coin, like, viewR, favoriteR, coinR, likeR):
     viewP = view * viewR
     favoriteP = favorite * favoriteR
     coinP = coin * coinR
     likeP = like * likeR
-    return round(viewP + favoriteP + coinP + likeP)
+    return viewP + favoriteP + coinP + likeP
 
 def process_records(records, old_data, new_data):
     info_list = []
@@ -67,11 +72,11 @@ def process_records(records, old_data, new_data):
             image_url = new['image_url']
 
             diff = calculate_differences(new, old)
-            viewR, favoriteR, coinR, likeR = calculate_scores(diff['view'], diff['favorite'], diff['coin'], diff['like'], hascopyright)
-            viewR, favoriteR, coinR, likeR = format_scores(viewR, favoriteR, coinR, likeR)
-            point = calculate_points(diff['view'], diff['favorite'], diff['coin'], diff['like'], float(viewR), float(favoriteR), float(coinR), float(likeR))
+            viewR, favoriteR, coinR, likeR , fixA, fixB, fixC = calculate_scores(diff['view'], diff['favorite'], diff['coin'], diff['like'], hascopyright)
+            viewR, favoriteR, coinR, likeR, fixA, fixB, fixC = format_scores(viewR, favoriteR, coinR, likeR, fixA, fixB, fixC)
+            point = round(float(fixB) * float(fixC) * calculate_points(diff['view'], diff['favorite'], diff['coin'] * float(fixA), diff['like'], float(viewR), float(favoriteR), float(coinR), float(likeR)))
 
-            info_list.append([title, bvid, name, author, uploader, hascopyright, synthesizer, vocal, type, pubdate, duration, page, diff['view'], diff['favorite'], diff['coin'], diff['like'], viewR, favoriteR, coinR, likeR, point, image_url])
+            info_list.append([title, bvid, name, author, uploader, hascopyright, synthesizer, vocal, type, pubdate, duration, page, diff['view'], diff['favorite'], diff['coin'], diff['like'], viewR, favoriteR, coinR, likeR, fixA, fixB, fixC, point, image_url])
   
         except Exception as e:
             print(f"Error fetching info for bvid {bvid}: {e}")
@@ -105,7 +110,7 @@ def filter_new_songs(info_list, top_20_names, target_week):
         if start_date <= pubdate < end_date and name not in top_20_names:
             new_songs_list.append(record)
     
-    new_songs_df = pd.DataFrame(new_songs_list, columns=['title', 'bvid', 'name', 'author', 'uploader', 'copyright', 'synthesizer', 'vocal', 'type', 'pubdate', 'duration', 'page', 'view', 'favorite', 'coin', 'like', 'viewR', 'favoriteR', 'coinR', 'likeR', 'point', 'image_url'])
+    new_songs_df = pd.DataFrame(new_songs_list, columns=['title', 'bvid', 'name', 'author', 'uploader', 'copyright', 'synthesizer', 'vocal', 'type', 'pubdate', 'duration', 'page', 'view', 'favorite', 'coin', 'like', 'viewR', 'favoriteR', 'coinR', 'likeR', 'fixA', 'fixB', 'fixC', 'point', 'image_url' ])
     new_songs_df = merge_duplicate_names(new_songs_df)
     new_songs_df = new_songs_df.sort_values('point', ascending=False)
 
@@ -141,7 +146,7 @@ def merge_duplicate_names(df):
     
     grouped = df.groupby('name')
     
-    for group in grouped:
+    for name, group in grouped:
         if len(group) > 1:
             best_record = group.loc[group['point'].idxmax()].copy()
             
@@ -162,7 +167,7 @@ def main_processing(old_data_path, new_data_path, output_path, new_songs_output_
     
     if info_list:
         # 处理总榜
-        stock_list = pd.DataFrame(info_list, columns=['title', 'bvid', 'name', 'author', 'uploader', 'copyright', 'synthesizer', 'vocal', 'type', 'pubdate', 'duration', 'page', 'view', 'favorite', 'coin', 'like', 'viewR', 'favoriteR', 'coinR', 'likeR', 'point', 'image_url'])
+        stock_list = pd.DataFrame(info_list, columns=['title', 'bvid', 'name', 'author', 'uploader', 'copyright', 'synthesizer', 'vocal', 'type', 'pubdate', 'duration', 'page', 'view', 'favorite', 'coin', 'like', 'viewR', 'favoriteR', 'coinR', 'likeR', 'fixA', 'fixB', 'fixC', 'point', 'image_url'])
         stock_list = merge_duplicate_names(stock_list)
         stock_list = stock_list.sort_values('point', ascending=False)
         

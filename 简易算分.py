@@ -1,3 +1,4 @@
+from math import ceil, floor
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
@@ -5,38 +6,44 @@ import tkinter as tk
 from tkinter import ttk
 
 def calculate_values(view, favorite, coin, like, hascopyright):
-    viewR = 0 if view == 0 else max(np.ceil(np.clip((coin + favorite) * 20 / view, 0, 1) * 100) / 100, 0)
-    favoriteR = 0 if favorite <= 0 else max(np.ceil(np.clip((favorite + 2 * coin) * 10 / (favorite * 20 + view) * 40, 0, 20) * 100) / 100, 0)
-    coinR = 0 if (1 if hascopyright == 1 else 2) * coin * 40 + view == 0 else max(np.ceil(np.clip(((1 if hascopyright == 1 else 2) * coin * 40) / ((1 if hascopyright == 1 else 2) * coin * 40 + view) * 80, 0, 40) * 100) / 100, 0)
-    likeR = 0 if like <= 0 else max(np.floor(np.clip(coin + favorite, 0, None) / (like * 20 + view) * 100 * 100) / 100, 0)
+    hascopyright = 1 if hascopyright in [1, 3] else 2
+    fixA = 0 if coin <= 0 else (1 if hascopyright == 1 else ceil(max(1, (view + 20 * favorite + 40 * coin + 10 * like) / (200 * coin)) * 100) / 100)
+    fixB = 0 if view + 20 * favorite <=0 else ceil(min(1, 3 * (20 * coin + 10 * like) / (view + 20 * favorite)) * 100) / 100
+    fixC = 0 if like + favorite <= 0 else ceil(min(1, (like + favorite + 20 * coin * fixA)/(2 * like + 2 * favorite)) * 100) / 100
     
-    viewP = round(view * viewR)
-    favoriteP = round(favorite * favoriteR)
-    coinP = round(coin * coinR)
-    likeP = round(like * likeR)
-    point = round(viewP + favoriteP + coinP + likeP)
+    viewR = 0 if view <= 0 else max(ceil(min(max((fixA * coin + favorite), 0) * 20 / view, 1) * 100) / 100, 0)
+    favoriteR = 0 if favorite <= 0 else max(ceil(min((favorite + 2 * fixA * coin) * 10 / (favorite * 20 + view) * 40, 20) * 100) / 100, 0)
+    coinR = 0 if fixA * coin * 40 + view <= 0 else max(ceil(min((fixA * coin * 40) / (fixA * coin *40 + view) * 80, 40) * 100) / 100, 0)
+    likeR = 0 if like <= 0 else max(floor(min(5, max(fixA * coin + favorite, 0) / (like * 20 + view) * 100) * 100) / 100, 0)
+   
+    viewP = view * viewR
+    favoriteP = favorite * favoriteR
+    coinP = coin * coinR
+    likeP = like * likeR
+    point = round(viewP + favoriteP + coinP*fixA + likeP)*fixB*fixC
     
-    return viewR, favoriteR, coinR, likeR, viewP, favoriteP, coinP, likeP, point
+    return viewR, favoriteR, coinR, likeR, round(viewP), round(favoriteP), round(coinP), round(likeP), round(point), fixA, fixB, fixC
 
+  
 def plot_graph(view, favorite, coin, like, hascopyright, variable, min_x, max_x):
     x = np.linspace(min_x, max_x, num=max_x - min_x + 1)
     y = np.zeros_like(x)
     
     if variable == "View":
         for i in x:
-            _, _, _, _, viewP, favoriteP, coinP, likeP, point = calculate_values(i, favorite, coin, like, hascopyright)
+            _, _, _, _, viewP, favoriteP, coinP, likeP, point, fixA, fixB, fixC = calculate_values(i, favorite, coin, like, hascopyright)
             y[int(i - min_x)] = point
     elif variable == "Favorite":
         for i in x:
-            _, _, _, _, viewP, favoriteP, coinP, likeP, point = calculate_values(view, i, coin, like, hascopyright)
+            _, _, _, _, viewP, favoriteP, coinP, likeP, point, fixA, fixB, fixC = calculate_values(view, i, coin, like, hascopyright)
             y[int(i - min_x)] = point
     elif variable == "Coin":
         for i in x:
-            _, _, _, _, viewP, favoriteP, coinP, likeP, point = calculate_values(view, favorite, i, like, hascopyright)
+            _, _, _, _, viewP, favoriteP, coinP, likeP, point, fixA, fixB, fixC = calculate_values(view, favorite, i, like, hascopyright)
             y[int(i - min_x)] = point
     elif variable == "Like":
         for i in x:
-            _, _, _, _, viewP, favoriteP, coinP, likeP, point = calculate_values(view, favorite, coin, i, hascopyright)
+            _, _, _, _, viewP, favoriteP, coinP, likeP, point, fixA, fixB, fixC = calculate_values(view, favorite, coin, i, hascopyright)
             y[int(i - min_x)] = point
     
     fig, ax = plt.subplots(figsize=(12, 8))
@@ -51,21 +58,28 @@ def plot_graph(view, favorite, coin, like, hascopyright, variable, min_x, max_x)
                         arrowprops=dict(facecolor='black', shrink=0.05 * arrow_size), fontsize=12, fontweight='bold')
 
     if variable == "View" and view >= min_x and view <= max_x:
-        _, _, _, _, viewP, favoriteP, coinP, likeP, point = calculate_values(view, favorite, coin, like, hascopyright)
+        _, _, _, _, viewP, favoriteP, coinP, likeP, point, fixA, fixB, fixC  = calculate_values(view, favorite, coin, like, hascopyright)
         annotate_point(view, point, variable)
     elif variable == "Favorite" and favorite >= min_x and favorite <= max_x:
-        _, _, _, _, viewP, favoriteP, coinP, likeP, point = calculate_values(view, favorite, coin, like, hascopyright)
+        _, _, _, _, viewP, favoriteP, coinP, likeP, point, fixA, fixB, fixC  = calculate_values(view, favorite, coin, like, hascopyright)
         annotate_point(favorite, point, variable)
     elif variable == "Coin" and coin >= min_x and coin <= max_x:
-        _, _, _, _, viewP, favoriteP, coinP, likeP, point = calculate_values(view, favorite, coin, like, hascopyright)
+        _, _, _, _, viewP, favoriteP, coinP, likeP, point, fixA, fixB, fixC  = calculate_values(view, favorite, coin, like, hascopyright)
         annotate_point(coin, point, variable)
     elif variable == "Like" and like >= min_x and like <= max_x:
-        _, _, _, _, viewP, favoriteP, coinP, likeP, point = calculate_values(view, favorite, coin, like, hascopyright)
+        _, _, _, _, viewP, favoriteP, coinP, likeP, point, fixA, fixB, fixC  = calculate_values(view, favorite, coin, like, hascopyright)
         annotate_point(like, point, variable)
     
     ax.set_xlabel(variable, fontsize=14)
     ax.set_ylabel('Point', fontsize=14)
-    ax.set_title(f'Point vs {variable}\nFavorite={favorite}, Coin={coin}, Like={like}', fontsize=16, fontweight='bold')
+    if variable == "View":
+        ax.set_title(f'Point vs {variable}\nFavorite={favorite}, Coin={coin}, Like={like}', fontsize=16, fontweight='bold')
+    elif variable == "Favorite":
+        ax.set_title(f'Point vs {variable}\nView={view}, Coin={coin}, Like={like}', fontsize=16, fontweight='bold')
+    elif variable == "Coin":
+        ax.set_title(f'Point vs {variable}\nView={view}, Favorite={favorite}, Like={like}', fontsize=16, fontweight='bold')
+    elif variable == "Like":
+        ax.set_title(f'Point vs {variable}\nView={view}, Favorite={favorite}, Coin={coin}', fontsize=16, fontweight='bold')
     ax.legend(fontsize=12)
     ax.grid(True)
     
@@ -73,7 +87,6 @@ def plot_graph(view, favorite, coin, like, hascopyright, variable, min_x, max_x)
 
 def update_plot(*args):
     try:
-        
         view = int(view_entry.get())
         favorite = int(favorite_entry.get())
         coin = int(coin_entry.get())
@@ -95,7 +108,9 @@ def update_plot(*args):
         canvas.figure = fig
         canvas.draw()
 
-        viewR, favoriteR, coinR, likeR, viewP, favoriteP, coinP, likeP, point = calculate_values(view, favorite, coin, like, hascopyright)
+        viewR, favoriteR, coinR, likeR, viewP, favoriteP, coinP, likeP, point, fixA, fixB, fixC = calculate_values(view, favorite, coin, like, hascopyright)
+        
+        # Update value labels
         view_value.config(text=f'View: {view}')
         favorite_value.config(text=f'Favorite: {favorite}')
         coin_value.config(text=f'Coin: {coin}')
@@ -109,8 +124,13 @@ def update_plot(*args):
         coinP_value.config(text=f'CoinP: {coinP}')
         likeP_value.config(text=f'LikeP: {likeP}')
         point_value.config(text=f'Point: {point}')
+        fixA_value.config(text=f'FixA: {fixA:.2f}')
+        fixB_value.config(text=f'FixB: {fixB:.2f}')
+        fixC_value.config(text=f'FixC: {fixC:.2f}')
+
     except ValueError:
         pass
+
 
 # Create the main window
 root = tk.Tk()
@@ -157,6 +177,8 @@ ttk.Radiobutton(copyright_frame, text="2", variable=copyright_var, value=2, comm
 # Create value labels
 value_frame = ttk.Frame(main_frame, padding="10")
 value_frame.grid(row=5, column=0, columnspan=2, sticky=(tk.W, tk.E))
+
+# Existing labels
 view_value = ttk.Label(value_frame, text="View: 10000", font=('Helvetica', 12, 'bold'))
 view_value.grid(row=0, column=0, sticky=tk.W)
 favorite_value = ttk.Label(value_frame, text="Favorite: 500", font=('Helvetica', 12, 'bold'))
@@ -165,6 +187,16 @@ coin_value = ttk.Label(value_frame, text="Coin: 500", font=('Helvetica', 12, 'bo
 coin_value.grid(row=2, column=0, sticky=tk.W)
 like_value = ttk.Label(value_frame, text="Like: 500", font=('Helvetica', 12, 'bold'))
 like_value.grid(row=3, column=0, sticky=tk.W)
+
+# New labels for fixA, fixB, fixC
+fixA_value = ttk.Label(value_frame, text="FixA: 0.00", font=('Helvetica', 12, 'bold'))
+fixA_value.grid(row=0, column=3, sticky=tk.W)
+fixB_value = ttk.Label(value_frame, text="FixB: 0.00", font=('Helvetica', 12, 'bold'))
+fixB_value.grid(row=1, column=3, sticky=tk.W)
+fixC_value = ttk.Label(value_frame, text="FixC: 0.00", font=('Helvetica', 12, 'bold'))
+fixC_value.grid(row=2, column=3, sticky=tk.W)
+
+# Existing value updates
 viewR_value = ttk.Label(value_frame, text="ViewR: 0.00", font=('Helvetica', 12, 'bold'))
 viewR_value.grid(row=0, column=1, sticky=tk.W)
 favoriteR_value = ttk.Label(value_frame, text="FavoriteR: 0.00", font=('Helvetica', 12, 'bold'))

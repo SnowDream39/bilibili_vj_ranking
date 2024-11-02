@@ -3,11 +3,11 @@ from datetime import datetime, timedelta
 
 # modes = ["any", "week"]
 
-mode = 0
-date2 = "20241020"
+mode = 1
+date2 = "20241102"
 
 if mode == 0: 
-    date1 = "20241019"
+    date1 = "20241031"
 else: 
     date1 = (datetime.strptime(date2, "%Y%m%d") - timedelta(days=7)).strftime("%Y%m%d")
 

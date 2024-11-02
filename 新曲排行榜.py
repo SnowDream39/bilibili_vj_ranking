@@ -2,10 +2,11 @@ import pandas as pd
 from datetime import datetime, timedelta
 
 def main():
-    today = 20241019
+    today = 20241101
     now_time_data = datetime.strptime(str(today), '%Y%m%d').strftime('%Y%m%d')
     new_time_data = (datetime.strptime(str(today), '%Y%m%d') + timedelta(days=1)).strftime('%Y%m%d')
     old_time_data = (datetime.strptime(str(today), '%Y%m%d') - timedelta(days=1)).strftime('%Y%m%d')
+
     
     file_path = f'E:/Programming/python/bilibili日V周刊/差异/新曲/新曲{new_time_data}与新曲{now_time_data}.xlsx'
     previous_rank_path = f'E:/Programming/python/bilibili日V周刊/新曲榜/新曲榜{now_time_data}与{old_time_data}.xlsx'
@@ -32,7 +33,7 @@ def load_data(file_path, previous_rank_path):
 def filter_recent_songs(df, today_date):
     if df['pubdate'].dtype == 'O': 
         df['pubdate'] = pd.to_datetime(df['pubdate'])
-    
+    today_date = datetime.strptime(today_date, '%Y%m%d')
     start_date = today_date - timedelta(days=1)
     end_date = today_date + timedelta(days=1)
     return df[(df['pubdate'] >= start_date) & (df['pubdate'] < end_date)]

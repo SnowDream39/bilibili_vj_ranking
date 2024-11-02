@@ -2,8 +2,8 @@ from datetime import datetime, timedelta
 import pandas as pd
 
 # modes = ['日', '周', '月']
-mode = 0
-new_date = "20241020"
+mode = 2
+new_date = "20241101"
 
 if mode == 0:
     num_new = 10
@@ -24,8 +24,8 @@ elif mode == 2:
     new_date_file = f'{new_date[:4]}-{new_date[4:6]}'
     old_date = (datetime.strptime(new_date, "%Y%m%d") - timedelta(days=30)).strftime("%Y%m%d")
     old_date_file = f'{old_date[:4]}-{old_date[4:6]}'
-    infile_toll = f'月榜/总榜/{old_date_file}.xlsx'
-    infile_new = f'月榜/新曲榜/新曲{old_date_file}.xlsx'
+    infile_toll = f'月刊/总榜/{old_date_file}.xlsx'
+    infile_new = f'月刊/新曲榜/新曲{old_date_file}.xlsx'
     outfile = f'抄榜/月/{old_date_file}.txt'
 
 
