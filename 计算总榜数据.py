@@ -2,10 +2,10 @@
 import pandas as pd
 from math import ceil, floor
 
-song_data = '春岚'
+song_data = '梦的结唱2-翻唱'
 
-def read_data(file_path, columns=None):
-    return pd.read_excel(file_path, usecols=columns)
+def read_data(file_path):
+    return pd.read_excel(file_path)
 
 def calculate_scores(view, favorite, coin, like, hascopyright):
     hascopyright = 1 if hascopyright in [1, 3] else 2
@@ -30,8 +30,10 @@ def calculate_points(view, favorite, coin, like, viewR, favoriteR, coinR, likeR)
     likeP = like * likeR
     return viewP + favoriteP + coinP + likeP
 
-def process_records(new_data):
-    info_list = []
+def process_records(new_data) -> pd.DataFrame:
+    # 输出文件的列，需与下面的info的键保持一致
+    columns = ['title','bvid','name','author','uploader','copyright','synthesizer','vocal','type','pubdate','duration','page','view','favorite','coin','like','viewR','favoriteR','coinR','likeR','fixA','fixB','fixC','point','image_url','view_rank','favorite_rank','coin_rank','like_rank','rank']
+    stock_list = pd.DataFrame(columns=columns)
     for i in new_data.index:
         bvid = new_data.at[i, "bvid"]
         pubdate = new_data.at[i, 'pubdate']
@@ -56,12 +58,18 @@ def process_records(new_data):
             viewR, favoriteR, coinR, likeR, fixA, fixB, fixC = format_scores(viewR, favoriteR, coinR, likeR, fixA, fixB, fixC)
             point = round(float(fixB) * float(fixC) * calculate_points(diff['view'], diff['favorite'], diff['coin'] * float(fixA), diff['like'], float(viewR), float(favoriteR), float(coinR), float(likeR)))
 
-            info_list.append([title, bvid, name, author, uploader, hascopyright, synthesizer, vocal, type, pubdate, duration, page, diff['view'], diff['favorite'], diff['coin'], diff['like'], viewR, favoriteR, coinR, likeR, fixA, fixB, fixC, point, image_url])
+            info =  {'title':title, 'bvid':bvid, 'name':name, 'author':author, 'uploader':uploader, 'copyright':hascopyright, 
+                    'synthesizer':synthesizer, 'vocal':vocal, 'type':type, 'pubdate':pubdate, 'duration':duration, 'page':page,
+                    'view':diff['view'], 'favorite':diff['favorite'], 'coin':diff['coin'], 'like':diff['like'],
+                    'viewR':viewR, 'favoriteR':favoriteR, 'coinR':coinR, 'likeR':likeR,
+                    'fixA':fixA, 'fixB':fixB, 'fixC':fixC, 'point':point, 'image_url':image_url}
+            info = pd.DataFrame([info])
+            stock_list = pd.concat([stock_list, info])
         
         except Exception as e:
             print(f"Error fetching info for BVID {bvid}: {e}")
 
-    return info_list
+    return stock_list
 
 
 def save_to_excel(df, filename, adjust_width=True):
@@ -70,18 +78,16 @@ def save_to_excel(df, filename, adjust_width=True):
         if adjust_width:
             worksheet = writer.sheets['Sheet1']
             for i, col in enumerate(df.columns, 1):
-                max_length = max(df[col].astype(str).map(len).max(), len(col)) + 2
+                col_name = str(col)
+                max_length = max(df[col].astype(str).map(len).max(), len(col_name)) + 2
                 worksheet.column_dimensions[worksheet.cell(row=1, column=i).column_letter].width = max_length
 
-
 def main_processing(data_path, output_path, point_threshold=None):
-    columns = ['bvid', 'video_title', 'title', 'author', 'uploader', 'copyright', 'synthesizer', 'vocal', 'type', 'pubdate', 'duration', 'view', 'favorite', 'coin', 'like']
-    new_data = read_data(data_path, columns=columns)
+    new_data = read_data(data_path)
 
-    info_list = process_records(new_data)
+    stock_list = process_records(new_data)
     
-    if info_list:
-        stock_list = pd.DataFrame(info_list, columns=['title', 'bvid', 'name', 'author', 'uploader', 'copyright', 'synthesizer', 'vocal', 'type', 'pubdate', 'duration', 'page', 'view', 'favorite', 'coin', 'like', 'viewR', 'favoriteR', 'coinR', 'likeR', 'fixA', 'fixB', 'fixC', 'point', 'image_url'])
+    if not stock_list.empty:
         if point_threshold:
             stock_list = stock_list[stock_list['point'] >= point_threshold]
         stock_list = stock_list.sort_values('point', ascending=False)
