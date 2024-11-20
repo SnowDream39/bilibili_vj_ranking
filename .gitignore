@@ -1,0 +1,14 @@
+bilibili日V周刊.sln
+bilibili日V周刊.pyproj
+__pycache__/
+.editorconfig
+收录曲目.xlsx
+.vs/
+*/
+*模块*
+*json*
+*萌百*
+*测试*
+*调试*
+
+/模块-初始化COUNT.py
