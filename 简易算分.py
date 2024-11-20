@@ -1,253 +1,304 @@
-from math import ceil, floor
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import tkinter as tk
 from tkinter import ttk
+from math import ceil, floor
 
-def calculate_values(view, favorite, coin, like, hascopyright):
-    hascopyright = 1 if hascopyright in [1, 3] else 2
-    fixA = 0 if coin <= 0 else (1 if hascopyright == 1 else ceil(max(1, (view + 20 * favorite + 40 * coin + 10 * like) / (200 * coin)) * 100) / 100)
-    fixB = 0 if view + 20 * favorite <=0 else ceil(min(1, 3 * (20 * coin + 10 * like) / (view + 20 * favorite)) * 100) / 100
-    fixC = 0 if like + favorite <= 0 else ceil(min(1, (like + favorite + 20 * coin * fixA)/(2 * like + 2 * favorite)) * 100) / 100
-    
-    viewR = 0 if view <= 0 else max(ceil(min(max((fixA * coin + favorite), 0) * 20 / view, 1) * 100) / 100, 0)
-    favoriteR = 0 if favorite <= 0 else max(ceil(min((favorite + 2 * fixA * coin) * 10 / (favorite * 20 + view) * 40, 20) * 100) / 100, 0)
-    coinR = 0 if fixA * coin * 40 + view <= 0 else max(ceil(min((fixA * coin * 40) / (fixA * coin *40 + view) * 80, 40) * 100) / 100, 0)
-    likeR = 0 if like <= 0 else max(floor(min(5, max(fixA * coin + favorite, 0) / (like * 20 + view) * 100) * 100) / 100, 0)
-   
-    viewP = view * viewR
-    favoriteP = favorite * favoriteR
-    coinP = coin * coinR
-    likeP = like * likeR
-    point = round(viewP + favoriteP + coinP*fixA + likeP)*fixB*fixC
-    
-    return viewR, favoriteR, coinR, likeR, round(viewP), round(favoriteP), round(coinP), round(likeP), round(point), fixA, fixB, fixC
+CONFIG = {
+    "default_values": {
+        "view": 10000,
+        "favorite": 500,
+        "coin": 500,
+        "like": 500,
+        "max_value": 100000,
+        "copyright": 1
+    },
+    "plot_config": {
+        "figsize": (8, 5),  
+        "min_x": -100,
+        "font_size": {
+            "label": 10,   
+            "title": 12,
+            "legend": 9
+        },
+        "sample_points": 10000 
+    },
+    "gui_config": {
+        "font": ('Helvetica', 10),
+        "padding": "5",
+        "label_widths": { 
+            "basic": 20,   
+            "rate": 20,     # 比率值（ViewR等）
+            "point": 40,    # 点数值（ViewP等）和总分
+            "fix": 20       # Fix值
+        }
+    }
+}
 
-  
-def plot_graph(view, favorite, coin, like, hascopyright, variable, min_x, max_x):
-    x = np.linspace(min_x, max_x, num=max_x - min_x + 1)
-    y = np.zeros_like(x)
-    
-    if variable == "View":
-        for i in x:
-            _, _, _, _, viewP, favoriteP, coinP, likeP, point, fixA, fixB, fixC = calculate_values(i, favorite, coin, like, hascopyright)
-            y[int(i - min_x)] = point
-    elif variable == "Favorite":
-        for i in x:
-            _, _, _, _, viewP, favoriteP, coinP, likeP, point, fixA, fixB, fixC = calculate_values(view, i, coin, like, hascopyright)
-            y[int(i - min_x)] = point
-    elif variable == "Coin":
-        for i in x:
-            _, _, _, _, viewP, favoriteP, coinP, likeP, point, fixA, fixB, fixC = calculate_values(view, favorite, i, like, hascopyright)
-            y[int(i - min_x)] = point
-    elif variable == "Like":
-        for i in x:
-            _, _, _, _, viewP, favoriteP, coinP, likeP, point, fixA, fixB, fixC = calculate_values(view, favorite, coin, i, hascopyright)
-            y[int(i - min_x)] = point
-    
-    fig, ax = plt.subplots(figsize=(12, 8))
-    ax.plot(x, y, label=f'Point vs {variable}', color='dodgerblue', linewidth=2)
-    
-    # Adjust arrow size dynamically
-    def annotate_point(x_value, y_value, label):
-        if x_value >= min_x and x_value <= max_x:
-            arrow_size = (max_x - min_x) / 1000  # Adjust arrow size based on range
-            ax.plot(x_value, y_value, 'ro')
-            ax.annotate(f'{label}: {x_value}\nPoint: {y_value}', xy=(x_value, y_value), xytext=(x_value + 0.05 * (max_x - min_x), y_value),
-                        arrowprops=dict(facecolor='black', shrink=0.05 * arrow_size), fontsize=12, fontweight='bold')
-
-    if variable == "View" and view >= min_x and view <= max_x:
-        _, _, _, _, viewP, favoriteP, coinP, likeP, point, fixA, fixB, fixC  = calculate_values(view, favorite, coin, like, hascopyright)
-        annotate_point(view, point, variable)
-    elif variable == "Favorite" and favorite >= min_x and favorite <= max_x:
-        _, _, _, _, viewP, favoriteP, coinP, likeP, point, fixA, fixB, fixC  = calculate_values(view, favorite, coin, like, hascopyright)
-        annotate_point(favorite, point, variable)
-    elif variable == "Coin" and coin >= min_x and coin <= max_x:
-        _, _, _, _, viewP, favoriteP, coinP, likeP, point, fixA, fixB, fixC  = calculate_values(view, favorite, coin, like, hascopyright)
-        annotate_point(coin, point, variable)
-    elif variable == "Like" and like >= min_x and like <= max_x:
-        _, _, _, _, viewP, favoriteP, coinP, likeP, point, fixA, fixB, fixC  = calculate_values(view, favorite, coin, like, hascopyright)
-        annotate_point(like, point, variable)
-    
-    ax.set_xlabel(variable, fontsize=14)
-    ax.set_ylabel('Point', fontsize=14)
-    if variable == "View":
-        ax.set_title(f'Point vs {variable}\nFavorite={favorite}, Coin={coin}, Like={like}', fontsize=16, fontweight='bold')
-    elif variable == "Favorite":
-        ax.set_title(f'Point vs {variable}\nView={view}, Coin={coin}, Like={like}', fontsize=16, fontweight='bold')
-    elif variable == "Coin":
-        ax.set_title(f'Point vs {variable}\nView={view}, Favorite={favorite}, Like={like}', fontsize=16, fontweight='bold')
-    elif variable == "Like":
-        ax.set_title(f'Point vs {variable}\nView={view}, Favorite={favorite}, Coin={coin}', fontsize=16, fontweight='bold')
-    ax.legend(fontsize=12)
-    ax.grid(True)
-    
-    return fig
-
-def update_plot(*args):
-    try:
-        view = int(view_entry.get())
-        favorite = int(favorite_entry.get())
-        coin = int(coin_entry.get())
-        like = int(like_entry.get())
-        hascopyright = int(copyright_var.get())
-        max_value = int(max_value_entry.get())
-        variable = variable_var.get()
-
-        if max_value < 500:
-            max_value = 500
-            max_value_entry.delete(0, tk.END)
-            max_value_entry.insert(0, str(max_value))
-        elif max_value > 10000000:
-            max_value = 10000000
-            max_value_entry.delete(0, tk.END)
-            max_value_entry.insert(0, str(max_value))
-
-        fig = plot_graph(view, favorite, coin, like, hascopyright, variable, -100, max_value)
-        canvas.figure = fig
-        canvas.draw()
-
-        viewR, favoriteR, coinR, likeR, viewP, favoriteP, coinP, likeP, point, fixA, fixB, fixC = calculate_values(view, favorite, coin, like, hascopyright)
+class ScoreCalculator:
+    @staticmethod
+    def calculate_values(view, favorite, coin, like, copyright):
+        copyright = 1 if copyright in [1, 3] else 2
+        fixA = 0 if coin <= 0 else (1 if copyright == 1 else ceil(max(1, (view + 20 * favorite + 40 * coin + 10 * like) / (200 * coin)) * 100) / 100)
+        fixB = 0 if view + 20 * favorite <= 0 else ceil(min(1, 3 * max(0, (20 * coin + 10 * like)) / (view + 20 * favorite)) * 100) / 100
+        fixC = 0 if like + favorite <= 0 else ceil(min(1, (like + favorite + 20 * coin * fixA)/(2 * like + 2 * favorite)) * 100) / 100
         
-        # Update value labels
-        view_value.config(text=f'View: {view}')
-        favorite_value.config(text=f'Favorite: {favorite}')
-        coin_value.config(text=f'Coin: {coin}')
-        like_value.config(text=f'Like: {like}')
-        viewR_value.config(text=f'ViewR: {viewR:.2f}')
-        favoriteR_value.config(text=f'FavoriteR: {favoriteR:.2f}')
-        coinR_value.config(text=f'CoinR: {coinR:.2f}')
-        likeR_value.config(text=f'LikeR: {likeR:.2f}')
-        viewP_value.config(text=f'ViewP: {viewP}')
-        favoriteP_value.config(text=f'FavoriteP: {favoriteP}')
-        coinP_value.config(text=f'CoinP: {coinP}')
-        likeP_value.config(text=f'LikeP: {likeP}')
-        point_value.config(text=f'Point: {point}')
-        fixA_value.config(text=f'FixA: {fixA:.2f}')
-        fixB_value.config(text=f'FixB: {fixB:.2f}')
-        fixC_value.config(text=f'FixC: {fixC:.2f}')
+        viewR = 0 if view <= 0 else max(ceil(min(max((fixA * coin + favorite), 0) * 20 / view, 1) * 100) / 100, 0)
+        favoriteR = 0 if favorite <= 0 else max(ceil(min((favorite + 2 * fixA * coin) * 10 / (favorite * 20 + view) * 40, 20) * 100) / 100, 0)
+        coinR = 0 if fixA * coin * 40 + view <= 0 else max(ceil(min((fixA * coin * 40) / (fixA * coin * 40 + view) * 80, 40) * 100) / 100, 0)
+        likeR = 0 if like <= 0 else max(floor(min(5, max(fixA * coin + favorite, 0) / (like * 20 + view) * 100) * 100) / 100, 0)
+        
+        viewP = view * viewR
+        favoriteP = favorite * favoriteR
+        coinP = coin * coinR
+        likeP = like * likeR
+        point = int(round(viewP + favoriteP + coinP * fixA + likeP) * fixB * fixC)
+        
+        return viewR, favoriteR, coinR, likeR, viewP, favoriteP, coinP, likeP, point, fixA, fixB, fixC
 
-    except ValueError:
-        pass
+class PlotManager:
+    def __init__(self, root):
+        self.root = root
+        self.setup_gui()
+        self.create_plot()
+        
+    def setup_gui(self):
+        self.main_frame = ttk.Frame(self.root, padding=CONFIG["gui_config"]["padding"])
+        self.main_frame.grid(row=0, column=0, sticky="nsew")
+        
+        self.create_input_fields()
+        self.create_copyright_selector()
+        self.create_value_labels()
+        self.create_controls()
+        
+    def create_input_fields(self):
+        self.entries = {}
+        fields = ["view", "favorite", "coin", "like"]
+        
+        for i, field in enumerate(fields):
+            ttk.Label(self.main_frame, text=f"{field.title()}:", 
+                     font=CONFIG["gui_config"]["font"]).grid(row=i, column=0, sticky="w")
+            
+            entry = ttk.Entry(self.main_frame, font=CONFIG["gui_config"]["font"])
+            entry.insert(0, str(CONFIG["default_values"][field]))
+            entry.grid(row=i, column=1, sticky="we")
+            entry.bind("<Return>", self.update_plot)
+            self.entries[field] = entry
 
+    def create_copyright_selector(self):
+        ttk.Label(self.main_frame, text="Copyright:", 
+                 font=CONFIG["gui_config"]["font"]).grid(row=4, column=0, sticky="w")
+        
+        self.copyright_var = tk.IntVar(value=CONFIG["default_values"]["copyright"])
+        copyright_frame = ttk.Frame(self.main_frame)
+        copyright_frame.grid(row=4, column=1, sticky="we")
+        
+        ttk.Radiobutton(copyright_frame, text="1", variable=self.copyright_var, 
+                       value=1, command=self.update_plot).grid(row=0, column=0)
+        ttk.Radiobutton(copyright_frame, text="2", variable=self.copyright_var, 
+                       value=2, command=self.update_plot).grid(row=0, column=1)
 
-# Create the main window
-root = tk.Tk()
-root.title("Interactive Plot")
+    def create_value_labels(self):
+        self.value_frame = ttk.Frame(self.main_frame, padding=CONFIG["gui_config"]["padding"])
+        self.value_frame.grid(row=5, column=0, columnspan=2, sticky="we")
+        
+        self.labels = {}
+        label_groups = [
+            [  # 两列布局
+                [("view", "View"), ("viewR", "ViewR"), ("viewP", "ViewP")],
+                [("favorite", "Fav"), ("favoriteR", "FavR"), ("favoriteP", "FavP")],
+                [("coin", "Coin"), ("coinR", "CoinR"), ("coinP", "CoinP")],
+                [("like", "Like"), ("likeR", "LikeR"), ("likeP", "LikeP")]
+            ],
+            [  # Fix值和总分
+                [("fixA", "FixA")],
+                [("fixB", "FixB")],
+                [("fixC", "FixC")],
+                [("point", "Point")]
+            ]
+        ]
+        
+        # 创建左侧标签组
+        left_frame = ttk.Frame(self.value_frame)
+        left_frame.grid(row=0, column=0, padx=2)
+        
+        for row, group in enumerate(label_groups[0]):
+            for col, (key, text) in enumerate(group):
+                label = ttk.Label(
+                    left_frame,
+                    text=f"{text}: 0",
+                    font=CONFIG["gui_config"]["font"],
+                    width=12
+                )
+                label.grid(row=row, column=col, sticky="w", padx=2, pady=1)
+                self.labels[key] = label
+        
+        # 创建右侧标签组
+        right_frame = ttk.Frame(self.value_frame)
+        right_frame.grid(row=0, column=1, padx=2)
+        
+        for row, group in enumerate(label_groups[1]):
+            for key, text in group:
+                label = ttk.Label(
+                    right_frame,
+                    text=f"{text}: 0",
+                    font=CONFIG["gui_config"]["font"],
+                    width=12
+                )
+                label.grid(row=row, column=0, sticky="w", padx=2, pady=1)
+                self.labels[key] = label
 
-# Create a style for the GUI
-style = ttk.Style(root)
-style.theme_use('clam')
+    def create_controls(self):
+        control_frame = ttk.Frame(self.main_frame)
+        control_frame.grid(row=6, column=0, columnspan=2, sticky="we", pady=2)
+        
+        # 使用更紧凑的布局
+        ttk.Label(control_frame, text="Max:", 
+                 font=CONFIG["gui_config"]["font"]).grid(row=0, column=0, padx=2)
+        self.max_value_entry = ttk.Entry(control_frame, font=CONFIG["gui_config"]["font"], width=8)
+        self.max_value_entry.insert(0, str(CONFIG["default_values"]["max_value"]))
+        self.max_value_entry.grid(row=0, column=1, padx=2)
+        
+        ttk.Label(control_frame, text="Var:", 
+                 font=CONFIG["gui_config"]["font"]).grid(row=0, column=2, padx=2)
+        self.variable_var = tk.StringVar()
+        self.variable_combobox = ttk.Combobox(
+            control_frame, 
+            textvariable=self.variable_var,
+            values=["View", "Favorite", "Coin", "Like"],
+            state="readonly",
+            font=CONFIG["gui_config"]["font"],
+            width=8
+        )
+        self.variable_combobox.current(0)
+        self.variable_combobox.grid(row=0, column=3, padx=2)
+        
+    def create_plot(self):
+        self.fig = plt.Figure(figsize=CONFIG["plot_config"]["figsize"])
+        self.canvas = FigureCanvasTkAgg(self.fig, master=self.root)
+        self.canvas.draw()
+        self.canvas.get_tk_widget().grid(row=1, column=0, columnspan=2, pady=10)
+        self.update_plot()
 
-# Main frame
-main_frame = ttk.Frame(root, padding="10")
-main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+    def update_plot(self, *args):
+        try:
+            values = self.get_current_values()
+            self.plot_graph(values)
+            self.update_labels(values)
+        except ValueError:
+            pass
 
-# Create entries and labels
-ttk.Label(main_frame, text="View:", font=('Helvetica', 12)).grid(row=0, column=0, sticky=tk.W)
-view_entry = ttk.Entry(main_frame, font=('Helvetica', 12))
-view_entry.insert(0, "10000")
-view_entry.grid(row=0, column=1, sticky=(tk.W, tk.E))
+    def get_current_values(self):
+        return {
+            'view': int(self.entries['view'].get()),
+            'favorite': int(self.entries['favorite'].get()),
+            'coin': int(self.entries['coin'].get()),
+            'like': int(self.entries['like'].get()),
+            'copyright': self.copyright_var.get(),
+            'max_value': max(500, min(10000000, int(self.max_value_entry.get()))),
+            'variable': self.variable_var.get()
+        }
 
-ttk.Label(main_frame, text="Favorite:", font=('Helvetica', 12)).grid(row=1, column=0, sticky=tk.W)
-favorite_entry = ttk.Entry(main_frame, font=('Helvetica', 12))
-favorite_entry.insert(0, "500")
-favorite_entry.grid(row=1, column=1, sticky=(tk.W, tk.E))
+    def plot_graph(self, values):
+        self.fig.clear()
+        ax = self.fig.add_subplot(111)
+        
+        # 使用固定数量的采样点，而不是基于区间长度
+        x = np.linspace(CONFIG["plot_config"]["min_x"], 
+                       values['max_value'], 
+                       CONFIG["plot_config"]["sample_points"])
+        y = np.zeros_like(x)
+        
+        var_map = {'View': 'view', 'Favorite': 'favorite', 'Coin': 'coin', 'Like': 'like'}
+        var_key = var_map[values['variable']]
+        
+        # 使用向量化操作代替循环
+        def calculate_point(x_val):
+            temp_values = values.copy()
+            temp_values[var_key] = x_val
+            *_, point, _, _, _ = ScoreCalculator.calculate_values(
+                temp_values['view'], temp_values['favorite'],
+                temp_values['coin'], temp_values['like'],
+                temp_values['copyright']
+            )
+            return point
+        
+        calculate_point_vec = np.vectorize(calculate_point)
+        y = calculate_point_vec(x)
+        
+        ax.plot(x, y, label=f'Point vs {values["variable"]}', color='dodgerblue', linewidth=1.5)
+        
+        # 添加当前点标注
+        current_x = values[var_key]
+        if CONFIG["plot_config"]["min_x"] <= current_x <= values['max_value']:
+            *_, current_y, _, _, _ = ScoreCalculator.calculate_values(
+                values['view'], values['favorite'],
+                values['coin'], values['like'],
+                values['copyright']
+            )
+            ax.plot(current_x, current_y, 'ro', markersize=4)
+            ax.annotate(
+                f'{values["variable"]}: {current_x}\nPoint: {current_y}',
+                xy=(current_x, current_y),
+                xytext=(current_x + 0.05 * (values['max_value'] - CONFIG["plot_config"]["min_x"]), current_y),
+                arrowprops=dict(facecolor='black', shrink=0.05),
+                fontsize=CONFIG["plot_config"]["font_size"]["label"],
+                fontweight='bold'
+            )
+        
+        # 简化标题
+        title = f'Point vs {values["variable"]}'
+        ax.set_title(title, fontsize=CONFIG["plot_config"]["font_size"]["title"])
+        
+        ax.set_xlabel(values['variable'], fontsize=CONFIG["plot_config"]["font_size"]["label"])
+        ax.set_ylabel('Point', fontsize=CONFIG["plot_config"]["font_size"]["label"])
+        ax.legend(fontsize=CONFIG["plot_config"]["font_size"]["legend"])
+        ax.grid(True, alpha=0.3)
+        
+        self.fig.tight_layout()
+        self.canvas.draw()
+        
+    def update_labels(self, values):
+        results = ScoreCalculator.calculate_values(
+            values['view'], values['favorite'],
+            values['coin'], values['like'],
+            values['copyright']
+        )
+    
+        viewR, favoriteR, coinR, likeR, viewP, favoriteP, coinP, likeP, point, fixA, fixB, fixC = results
+    
+        updates = {
+            'view': f"View: {values['view']}",
+            'favorite': f"Fav: {values['favorite']}",
+            'coin': f"Coin: {values['coin']}",
+            'like': f"Like: {values['like']}",
+            'viewR': f"ViewR: {viewR:.2f}",
+            'favoriteR': f"FavR: {favoriteR:.2f}",
+            'coinR': f"CoinR: {coinR:.2f}",
+            'likeR': f"LikeR: {likeR:.2f}",
+            'viewP': f"ViewP: {viewP:.0f}",
+            'favoriteP': f"FavP: {favoriteP:.0f}",
+            'coinP': f"CoinP: {coinP:.0f}",
+            'likeP': f"LikeP: {likeP:.0f}",
+            'fixA': f"FixA: {fixA:.2f}",
+            'fixB': f"FixB: {fixB:.2f}",
+            'fixC': f"FixC: {fixC:.2f}",
+            'point': f"Point: {point:.0f}"
+        }
+    
+        for key, text in updates.items():
+            self.labels[key].config(text=text)
 
-ttk.Label(main_frame, text="Coin:", font=('Helvetica', 12)).grid(row=2, column=0, sticky=tk.W)
-coin_entry = ttk.Entry(main_frame, font=('Helvetica', 12))
-coin_entry.insert(0, "500")
-coin_entry.grid(row=2, column=1, sticky=(tk.W, tk.E))
+def main():
+    root = tk.Tk()
+    root.title("Interactive Plot")
+    
+    style = ttk.Style(root)
+    style.theme_use('clam')
+    
+    app = PlotManager(root)
+    root.mainloop()
 
-ttk.Label(main_frame, text="Like:", font=('Helvetica', 12)).grid(row=3, column=0, sticky=tk.W)
-like_entry = ttk.Entry(main_frame, font=('Helvetica', 12))
-like_entry.insert(0, "500")
-like_entry.grid(row=3, column=1, sticky=(tk.W, tk.E))
-
-
-ttk.Label(main_frame, text="Copyright:", font=('Helvetica', 12)).grid(row=4, column=0, sticky=tk.W)
-copyright_var = tk.IntVar()
-copyright_var.set(1)
-copyright_frame = ttk.Frame(main_frame)
-copyright_frame.grid(row=4, column=1, sticky=(tk.W, tk.E))
-ttk.Radiobutton(copyright_frame, text="1", variable=copyright_var, value=1, command=update_plot).grid(row=0, column=0)
-ttk.Radiobutton(copyright_frame, text="2", variable=copyright_var, value=2, command=update_plot).grid(row=0, column=1)
-
-# Create value labels
-value_frame = ttk.Frame(main_frame, padding="10")
-value_frame.grid(row=5, column=0, columnspan=2, sticky=(tk.W, tk.E))
-
-# Existing labels
-view_value = ttk.Label(value_frame, text="View: 10000", font=('Helvetica', 12, 'bold'))
-view_value.grid(row=0, column=0, sticky=tk.W)
-favorite_value = ttk.Label(value_frame, text="Favorite: 500", font=('Helvetica', 12, 'bold'))
-favorite_value.grid(row=1, column=0, sticky=tk.W)
-coin_value = ttk.Label(value_frame, text="Coin: 500", font=('Helvetica', 12, 'bold'))
-coin_value.grid(row=2, column=0, sticky=tk.W)
-like_value = ttk.Label(value_frame, text="Like: 500", font=('Helvetica', 12, 'bold'))
-like_value.grid(row=3, column=0, sticky=tk.W)
-
-# New labels for fixA, fixB, fixC
-fixA_value = ttk.Label(value_frame, text="FixA: 0.00", font=('Helvetica', 12, 'bold'))
-fixA_value.grid(row=0, column=3, sticky=tk.W)
-fixB_value = ttk.Label(value_frame, text="FixB: 0.00", font=('Helvetica', 12, 'bold'))
-fixB_value.grid(row=1, column=3, sticky=tk.W)
-fixC_value = ttk.Label(value_frame, text="FixC: 0.00", font=('Helvetica', 12, 'bold'))
-fixC_value.grid(row=2, column=3, sticky=tk.W)
-
-# Existing value updates
-viewR_value = ttk.Label(value_frame, text="ViewR: 0.00", font=('Helvetica', 12, 'bold'))
-viewR_value.grid(row=0, column=1, sticky=tk.W)
-favoriteR_value = ttk.Label(value_frame, text="FavoriteR: 0.00", font=('Helvetica', 12, 'bold'))
-favoriteR_value.grid(row=1, column=1, sticky=tk.W)
-coinR_value = ttk.Label(value_frame, text="CoinR: 0.00", font=('Helvetica', 12, 'bold'))
-coinR_value.grid(row=2, column=1, sticky=tk.W)
-likeR_value = ttk.Label(value_frame, text="LikeR: 0.00", font=('Helvetica', 12, 'bold'))
-likeR_value.grid(row=3, column=1, sticky=tk.W)
-viewP_value = ttk.Label(value_frame, text="ViewP: 0", font=('Helvetica', 12, 'bold'))
-viewP_value.grid(row=0, column=2, sticky=tk.W)
-favoriteP_value = ttk.Label(value_frame, text="FavoriteP: 0", font=('Helvetica', 12, 'bold'))
-favoriteP_value.grid(row=1, column=2, sticky=tk.W)
-coinP_value = ttk.Label(value_frame, text="CoinP: 0", font=('Helvetica', 12, 'bold'))
-coinP_value.grid(row=2, column=2, sticky=tk.W)
-likeP_value = ttk.Label(value_frame, text="LikeP: 0", font=('Helvetica', 12, 'bold'))
-likeP_value.grid(row=3, column=2, sticky=tk.W)
-point_value = ttk.Label(value_frame, text="Point: 0", font=('Helvetica', 12, 'bold'))
-point_value.grid(row=4, column=0, columnspan=3, sticky=tk.W)
-
-# Create the maximum value entry
-ttk.Label(main_frame, text="Maximum Value:", font=('Helvetica', 12)).grid(row=6, column=0, sticky=tk.W)
-max_value_entry = ttk.Entry(main_frame, font=('Helvetica', 12))
-max_value_entry.insert(0, "100000")
-max_value_entry.grid(row=6, column=1, sticky=(tk.W, tk.E))
-max_value_entry.bind("<Return>", update_plot)
-
-# Bind the update_plot function to the entries
-view_entry.bind("<Return>", update_plot)
-favorite_entry.bind("<Return>", update_plot)
-coin_entry.bind("<Return>", update_plot)
-like_entry.bind("<Return>", update_plot)
-
-
-# Create a combobox to select the independent variable
-ttk.Label(main_frame, text="Independent Variable:", font=('Helvetica', 12)).grid(row=7, column=0, sticky=tk.W)
-variable_var = tk.StringVar()
-variable_combobox = ttk.Combobox(main_frame, textvariable=variable_var, values=["View", "Favorite", "Coin", "Like"], state="readonly", font=('Helvetica', 12))
-variable_combobox.current(0)
-variable_combobox.grid(row=7, column=1, sticky=(tk.W, tk.E))
-variable_combobox.bind("<<ComboboxSelected>>", update_plot)
-
-# Create a canvas for the plot
-fig = plot_graph(int(view_entry.get()), int(favorite_entry.get()), int(coin_entry.get()), int(like_entry.get()), int(copyright_var.get()), variable_var.get(), 0, int(max_value_entry.get()))
-canvas = FigureCanvasTkAgg(fig, master=root)
-canvas.draw()
-canvas.get_tk_widget().grid(row=1, column=0, columnspan=2, pady=10)
-
-# Adjust grid weights
-main_frame.columnconfigure(1, weight=1)
-root.columnconfigure(0, weight=1)
-root.rowconfigure(1, weight=1)
-
-# Run the Tkinter event loop
-root.mainloop()
+if __name__ == "__main__":
+    main()

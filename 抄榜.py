@@ -2,8 +2,8 @@ from datetime import datetime, timedelta
 import pandas as pd
 
 # modes = ['日', '周', '月']
-mode = 2
-new_date = "20241101"
+mode = 1
+new_date = "20241116"
 
 if mode == 0:
     num_new = 10
