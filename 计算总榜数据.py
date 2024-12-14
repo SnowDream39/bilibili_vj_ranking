@@ -2,7 +2,7 @@
 import pandas as pd
 from math import ceil, floor
 
-song_data = '梦的结唱2-翻唱'
+song_data = '梦的结唱2-原创'
 
 def read_data(file_path):
     return pd.read_excel(file_path)
