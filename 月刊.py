@@ -5,10 +5,6 @@ from math import ceil, floor
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 
-old_time_data = '20241001'
-new_time_data = '20241101'
-target_month = '2024-10'  # 目标月份
-
 CONFIG = {
     "columns": [
         'title', 'bvid', 'name', 'author', 'uploader', 'copyright', 
@@ -16,9 +12,9 @@ CONFIG = {
         'view', 'favorite', 'coin', 'like', 'image_url'
     ],
     "dates": {
-        "old": '20241001',
-        "new": '20241101',
-        "target": '2024-10',
+        "old": '20241101',
+        "new": '20241201',
+        "target": '2024-11',
     },
     "output_paths": {
         "total": "月刊/总榜",
@@ -119,7 +115,7 @@ def merge_old_data(date, columns):
         return main_data
     
 def process_records(new_data, old_data):
-    """处理数据记录并返回DataFrame而不是字典"""
+    """处理数据记录"""
     data_list = []
     for i in new_data.index:
         bvid = new_data.at[i, "bvid"]

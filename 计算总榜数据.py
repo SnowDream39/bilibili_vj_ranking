@@ -2,7 +2,7 @@ import asyncio
 import pandas as pd
 from math import ceil, floor
 
-song_data = '催眠者'
+song_data = '20241213'
 
 CONFIG = {
     "columns": [
@@ -22,12 +22,12 @@ def read_data(file_path, columns=None):
 def calculate_scores(view, favorite, coin, like, copyright):
     copyright = 1 if copyright in [1, 3] else 2
     fixA = 0 if coin <= 0 else (1 if copyright == 1 else ceil(max(1, (view + 20 * favorite + 40 * coin + 10 * like) / (200 * coin)) * 100) / 100)
-    fixB = 0 if view + 20 * favorite <= 0 else ceil(min(1, 3 * (20 * coin + 10 * like) / (view + 20 * favorite)) * 100) / 100
+    fixB = 0 if view + 20 * favorite <= 0 else ceil(min(1, 3 * (20 * fixA * coin + 10 * like) / (view + 20 * favorite)) * 100) / 100
     fixC = 0 if like + favorite <= 0 else ceil(min(1, (like + favorite + 20 * coin * fixA)/(2 * like + 2 * favorite)) * 100) / 100
     
-    viewR = 0 if view <= 0 else max(ceil(min(max((fixA * coin + favorite), 0) * 30 / view, 1) * 100) / 100, 0)
-    favoriteR = 0 if favorite <= 0 else max(ceil(min((favorite + 2 * fixA * coin) * 10 / (favorite * 10 + view) * 40, 20) * 100) / 100, 0)
-    coinR = 0 if fixA * coin * 40 + view <= 0 else max(ceil(min((fixA * coin * 40) / (fixA * coin * 20 + view) * 80, 40) * 100) / 100, 0)
+    viewR = 0 if view <= 0 else max(ceil(min(max((fixA * coin + favorite), 0) * 25 / view, 1) * 100) / 100, 0)
+    favoriteR = 0 if favorite <= 0 else max(ceil(min((favorite + 2 * fixA * coin) * 10 / (favorite * 15 + view) * 40, 20) * 100) / 100, 0)
+    coinR = 0 if fixA * coin * 40 + view <= 0 else max(ceil(min((fixA * coin * 40) / (fixA * coin * 30 + view) * 80, 40) * 100) / 100, 0)
     likeR = 0 if like <= 0 else max(floor(min(5, max(fixA * coin + favorite, 0) / (like * 20 + view) * 100) * 100) / 100, 0)
 
     return viewR, favoriteR, coinR, likeR, fixA, fixB, fixC

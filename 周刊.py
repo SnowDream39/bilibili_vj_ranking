@@ -11,9 +11,9 @@ CONFIG = {
         'view', 'favorite', 'coin', 'like', 'image_url'
     ],
     "dates": {
-        "old": '20241109',
-        "new": '20241116',
-        "target": '2024-11-16',
+        "old": '20241207',
+        "new": '20241214',
+        "target": '2024-12-14',
     },
     "output_paths": {
         "total": "周刊/总榜",
@@ -129,7 +129,7 @@ def merge_old_data(date, columns):
         return main_data
     
 def process_records(new_data, old_data):
-    """处理数据记录并返回DataFrame而不是字典"""
+    """处理数据记录"""
     data_list = []
     for i in new_data.index:
         bvid = new_data.at[i, "bvid"]
@@ -179,8 +179,8 @@ def main_processing():
     new_data = read_data(f"数据/{CONFIG['dates']['new']}.xlsx", CONFIG['columns'])
 
     df = process_records(new_data, old_data)
-    df = calculate_ranks(df)
     df = df.loc[df.groupby('name')['point'].idxmax()].reset_index(drop=True)
+    df = calculate_ranks(df)
     df = format_columns(df)
     df = update_count(df, CONFIG['dates']['new'])
     df = update_rank_and_rate(df)

@@ -4,7 +4,7 @@ from openpyxl.utils import get_column_letter
 from datetime import datetime, timedelta
 
 def main():
-    today_date = 20241119  # 旧曲日期
+    today_date = 20241213  # 旧曲日期
 
     old_time_toll = datetime.strptime(str(today_date), '%Y%m%d').strftime('%Y%m%d')
     new_time_toll = (datetime.strptime(str(today_date), '%Y%m%d') + timedelta(days=1)).strftime('%Y%m%d')
@@ -14,12 +14,14 @@ def main():
     combined_df = process_combined_data(new_time_toll, old_time_toll, new_time_new, old_time_new, today_date)
     save_to_excel(combined_df, f'差异/合并表格/{new_time_toll}与{old_time_toll}.xlsx')
 
+    df2 = pd.read_excel(f'数据/{new_time_toll}.xlsx')
     df3 = pd.read_excel(f'新曲数据/{new_time_new}.xlsx')
-    updated_df1 = process_new_songs(combined_df, df3, new_time_toll)
-    save_to_excel(updated_df1, f'数据/{new_time_toll}.xlsx', adjust_width=False)
 
     updated_existing_songs = update_existing_songs(combined_df)
     save_to_excel(updated_existing_songs, '收录曲目.xlsx', adjust_width=False)
+
+    updated_df1 = process_new_songs(df2, df3, new_time_toll)
+    save_to_excel(updated_df1, f'数据/{new_time_toll}.xlsx', adjust_width=False)
 
 def process_combined_data(new_time_toll, old_time_toll, new_time_new, old_time_new, today_date):
     combined_df = read_and_combine_sheets(new_time_toll, old_time_toll, new_time_new, old_time_new)
@@ -27,6 +29,7 @@ def process_combined_data(new_time_toll, old_time_toll, new_time_new, old_time_n
     combined_df = format_columns(combined_df)
     combined_df = update_count(combined_df, today_date)
     combined_df = update_rank_and_rate(combined_df, today_date)
+    combined_df = calculate_ranks(combined_df)
     return combined_df
 
 def read_and_combine_sheets(new_time_toll, old_time_toll, new_time_new, old_time_new):
@@ -111,14 +114,21 @@ def adjust_column_width(worksheet, df):
         worksheet.column_dimensions[get_column_letter(i)].width = max_length
 
 def process_new_songs(df2, df3, existed_song1):
-    merged_df = df2.merge(df3, on='bvid', suffixes=('', '_y'))
+    existing_df = pd.read_excel('收录曲目.xlsx')
+    merged_df = df3.merge(df2, on='bvid', suffixes=('', '_y'))
     new_songs_df = merged_df[[
-        'title_y', 'bvid', 'name', 'author', 'uploader', 
+        'title', 'bvid', 'name', 'author', 'uploader', 
         'copyright', 'synthesizer', 'vocal', 'type', 
         'pubdate', 'duration', 'page', 'view', 
         'favorite', 'coin', 'like', 'image_url'
-    ]].rename(columns={'title_y': 'title'})
-    
+    ]]
+    merged_df = df3.merge(existing_df, on='bvid', suffixes=('', '_y'))
+    new_songs_df = merged_df[[
+        'title', 'bvid', 'name_y', 'author_y', 'uploader', 
+        'copyright_y', 'synthesizer_y', 'vocal_y', 'type_y', 
+        'pubdate', 'duration', 'page', 'view', 
+        'favorite', 'coin', 'like', 'image_url'
+    ]].rename(columns={'name_y': 'name', 'author_y': 'author', 'copyright_y': 'copyright', 'synthesizer_y': 'synthesizer', 'vocal_y': 'vocal', 'type_y': 'type'})
     existing_df1 = pd.read_excel(f'数据/{existed_song1}.xlsx', engine='openpyxl')
     updated_df1 = pd.concat([existing_df1, new_songs_df]).drop_duplicates(subset=['bvid'], keep='last')
     return updated_df1

@@ -2,7 +2,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 
 def main():
-    today = 20241119
+    today = 20241213
     now_time_data = datetime.strptime(str(today), '%Y%m%d').strftime('%Y%m%d')
     new_time_data = (datetime.strptime(str(today), '%Y%m%d') + timedelta(days=1)).strftime('%Y%m%d')
     old_time_data = (datetime.strptime(str(today), '%Y%m%d') - timedelta(days=1)).strftime('%Y%m%d')
@@ -65,7 +65,7 @@ def format_columns(df):
 
 def save_to_excel(df, output_path):
     df.to_excel(output_path, index=False)
-    print("处理完成，详细数据已保存到", output_path)
+    print(f'{output_path} 已保存')
 
 if __name__ == "__main__":
     main()

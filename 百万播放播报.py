@@ -3,11 +3,11 @@ from datetime import datetime, timedelta
 
 # modes = ["any", "week"]
 
-mode = 0
-date2 = "20241120"
+mode = 1
+date2 = "20241214"
 
 if mode == 0: 
-    date1 = "20241119"
+    date1 = "20241213"
 else: 
     date1 = (datetime.strptime(date2, "%Y%m%d") - timedelta(days=7)).strftime("%Y%m%d")
 
@@ -33,7 +33,7 @@ def record_view_change(date1, date2):
     df_date2 = pd.read_excel(file_date2)
     
     df_merged = pd.merge(df_date1[['bvid', 'view']], 
-                         df_date2[['bvid', 'view', 'video_title', 'title', 'author', 'pubdate']], 
+                         df_date2[['bvid', 'view', 'title', 'name', 'author', 'pubdate']], 
                          on='bvid', how='right', suffixes=(f'_{date1}', f'_{date2}'))
     
     df_merged[f'view_{date1}'] = df_merged[f'view_{date1}'].fillna(0)
@@ -65,9 +65,9 @@ def record_view_change(date1, date2):
             if view2_million > 0:
                 for million in range(1, view2_million + 1):
                     million_rows.append({
-                        'video_title': row['video_title'],
-                        'bvid': row['bvid'],
                         'title': row['title'],
+                        'bvid': row['bvid'],
+                        'name': row['name'],
                         'author': row['author'],
                         'pubdate': row['pubdate'],
                         'million_crossed': million 
@@ -76,9 +76,9 @@ def record_view_change(date1, date2):
             if view2_million > view1_million:
                 for million in range(view1_million + 1, view2_million + 1):
                     million_rows.append({
-                        'video_title': row['video_title'],
-                        'bvid': row['bvid'],
                         'title': row['title'],
+                        'bvid': row['bvid'],
+                        'name': row['name'],
                         'author': row['author'],
                         'pubdate': row['pubdate'],
                         'million_crossed': million  
@@ -88,9 +88,9 @@ def record_view_change(date1, date2):
         if row['is_new_video']:
             if view2_10w > 0 and view2_10w % 10 == 1:  # 确保不包括20万、30万等整10万倍数
                 _10w_rows.append({
-                    'video_title': row['video_title'],
-                    'bvid': row['bvid'],
                     'title': row['title'],
+                    'bvid': row['bvid'],
+                    'name': row['name'],
                     'author': row['author'],
                     'pubdate': row['pubdate'],
                     '10w_crossed': view2_10w * 10
@@ -101,9 +101,9 @@ def record_view_change(date1, date2):
                     _10nw=[]
                     if _10w == 1:  # 记录非整10万倍的10万变化
                         _10w_rows.append({
-                            'video_title': row['video_title'],
-                            'bvid': row['bvid'],
                             'title': row['title'],
+                            'bvid': row['bvid'],
+                            'name': row['name'],
                             'author': row['author'],
                             'pubdate': row['pubdate'],
                             '10w_crossed': _10w * 10
@@ -112,12 +112,12 @@ def record_view_change(date1, date2):
                     else:
                         if _10w in [2,3,4,5,6,7,8,9,25, 95,75, 99]:
                             _10nw.append({
-                                'title': row['title'],
+                                'name': row['name'],
                                 '10w_crossed': _10w * 10,
                                 'bvid': row['bvid']
                             })
                             for _10nw_row in _10nw:
-                                print(f"{_10nw_row['10w_crossed']}万：{_10nw_row['title']}  {_10nw_row['bvid']}")
+                                print(f"{_10nw_row['10w_crossed']}万：{_10nw_row['name']}  {_10nw_row['bvid']}")
     # 检查是否有百万记录
     if million_rows:
         df_million_export = pd.DataFrame(million_rows)
@@ -130,7 +130,7 @@ def record_view_change(date1, date2):
         
         # 打印百万播放记录
         for _, row in df_million_export.iterrows():
-            print(f"{row['million_crossed'] * 100}万: {row['title']}   {row['bvid']}")
+            print(f"{row['million_crossed'] * 100}万：{row['name']}   {row['bvid']}")
 
     # 检查是否有10万记录
     if _10w_rows:
@@ -144,7 +144,7 @@ def record_view_change(date1, date2):
         
         # 打印10万播放记录
         for _, row in df_10w_export.iterrows():
-            print(f"{row['10w_crossed']}万: {row['title']}   {row['bvid']}")
+            print(f"{row['10w_crossed']}万：{row['name']}   {row['bvid']}")
 
 if __name__ == "__main__":
     record_view_change(date1, date2)

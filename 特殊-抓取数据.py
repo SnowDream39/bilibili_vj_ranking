@@ -10,7 +10,7 @@ from dataclasses import dataclass, asdict
 from typing import List, Optional, Dict, Any
 from pathlib import Path
 
-special_name="春岚"
+special_name="催眠者"
 @dataclass
 class VideoInfo:
     """视频信息数据类"""
@@ -35,7 +35,7 @@ class VideoInfo:
 class Config:
     """配置类"""
     KEYWORDS = [
-            "春岚"
+            "催眠者","催眠术","催眠师","Mesmerizer","メズマライザー"
     ]
     HEADERS = [
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',

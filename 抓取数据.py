@@ -139,7 +139,7 @@ class SongDataFetcher:
 
 if __name__ == "__main__":
     async def main():
-        fetcher = SongDataFetcher('收录曲目.xlsx', '数据')
+        fetcher = SongDataFetcher('催眠者.xlsx', '特殊\特殊原始数据')
         await fetcher.run()
 
     asyncio.run(main())

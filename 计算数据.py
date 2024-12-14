@@ -3,8 +3,7 @@ import pandas as pd
 from math import ceil, floor
 from datetime import datetime, timedelta
 
-today = datetime.now().replace(hour=0, minute=0,second=0,microsecond=0)
-
+today = datetime.now().replace(hour=0, minute=0,second=0,microsecond=0).strftime('%Y%m%d')
 old_time_toll = datetime.strptime(str(today), '%Y%m%d').strftime('%Y%m%d')
 new_time_toll = (datetime.strptime(str(today), '%Y%m%d') + timedelta(days=1)).strftime('%Y%m%d')  
 old_time_new = f'新曲{old_time_toll}'
