@@ -2,7 +2,7 @@ import asyncio
 import pandas as pd
 from math import ceil, floor
 
-song_data = '20241213'
+song_data = '20250101'
 
 CONFIG = {
     "columns": [

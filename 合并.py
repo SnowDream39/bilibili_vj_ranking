@@ -4,7 +4,7 @@ from openpyxl.utils import get_column_letter
 from datetime import datetime, timedelta
 
 def main():
-    today_date = 20241213  # 旧曲日期
+    today_date = 20250120  # 旧曲日期
 
     old_time_toll = datetime.strptime(str(today_date), '%Y%m%d').strftime('%Y%m%d')
     new_time_toll = (datetime.strptime(str(today_date), '%Y%m%d') + timedelta(days=1)).strftime('%Y%m%d')

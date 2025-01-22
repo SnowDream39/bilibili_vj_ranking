@@ -76,9 +76,9 @@ class Config:
     "葛駄夜音", "艾可", "赤羽", 
     "Koronba4号", "ころんば4号", "默辰", "沨漪",
     "VOCALOID", "synthesizer v", "SynthV", "SV", "CeVIO", "UTAU", "VOICEROID", 
-    "VOICEPEAK", "NEUTRINO","术力口","ボカロ","ボーカロイド","Voisona","NT"
-    "夢ノ結唱", "日文", "日语", 
-    "chinozo", "rotbala", "regnore", "青杉折扇", "阿赫official", "SYNZI",
+    "VOICEPEAK", "NEUTRINO","术力口","ボカロ","ボーカロイド","Voisona","NT",
+    "夢ノ結唱", "日文", "chinozo", 
+    "rotbala", "regnore", "青杉折扇", "阿赫official", "SYNZI",
     "羊小星", "精神安定剤", "KitanoNani", "妄想Delusions", "苏维埃冰棺中的伊利亚",
     "委蛇原_radio", "kttts", "珠紫MuRaSaKi", "音街ウナ", "SenaRinka_Alice",
     "雨喙Beak_In_Rain", "星のカケラ", "Soraだよ", "BoringCoumselor",
