@@ -5,11 +5,9 @@ from bilibili_api import search, video, Credential
 from datetime import datetime, timedelta
 import re
 import random
-from openpyxl.utils import get_column_letter
 from dataclasses import dataclass, asdict
 from typing import List, Optional, Dict, Any
 from pathlib import Path
-
 
 @dataclass
 class VideoInfo:
@@ -120,8 +118,9 @@ class BilibiliScraper:
         Config.OUTPUT_DIR.mkdir(exist_ok=True)
 
     @staticmethod
-    def clean_html_tags(text: str) -> str:
-        return re.sub(r'<.*?>', '', text)
+    def clean_tags(text: str) -> str:
+        text = re.sub(r'<.*?>', '', text)
+        return re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F\u200B-\u200F\u2028-\u202F\u205F-\u206F\uFEFF\uFFFE-\uFFFF]','', text)
 
     @staticmethod
     def convert_duration(duration: int) -> str:
@@ -209,9 +208,9 @@ class BilibiliScraper:
                 return None
             print(f"获取视频信息： {bvid}")
             return VideoInfo(
-                title=self.clean_html_tags(info['title']),
+                title=self.clean_tags(info['title']),
                 bvid=bvid,
-                name=self.clean_html_tags(info['title']),
+                name=self.clean_tags(info['title']),
                 author=info['owner']['name'],
                 uploader=info['owner']['name'],
                 copyright=info['copyright'],
@@ -260,16 +259,17 @@ class BilibiliScraper:
         df = df[columns]
         filename = Config.OUTPUT_DIR / f"新曲{self.today.strftime('%Y%m%d')}.xlsx"
 
-        with pd.ExcelWriter(filename, engine='openpyxl') as writer:
-            df.to_excel(writer, index=False, sheet_name='Sheet1')
-            worksheet = writer.sheets['Sheet1']
-            
-            pubdate_col = get_column_letter(df.columns.get_loc('pubdate') + 1)
-            for cell in worksheet[pubdate_col]:
-                cell.number_format = '@'
-                cell.alignment = cell.alignment.copy(horizontal='left')
-
-        print(f"{filename} 已保存")
+        try:
+            with pd.ExcelWriter(filename, engine='openpyxl') as writer:
+                df.to_excel(writer, index=False, sheet_name='Sheet1')
+            print(f"{filename} 已保存")
+        except Exception as e:
+            print(f"Excel 保存失败: {e}")
+    
+            # 备份 CSV
+            backup_csv = filename.with_suffix('.csv')
+            df.to_csv(backup_csv, index=False, encoding='utf-8-sig')
+            print(f"数据已备份至 {backup_csv}")
 
 async def main():
     scraper = BilibiliScraper()

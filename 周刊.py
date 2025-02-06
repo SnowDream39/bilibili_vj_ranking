@@ -11,9 +11,9 @@ CONFIG = {
         'view', 'favorite', 'coin', 'like', 'image_url'
     ],
     "dates": {
-        "old": '20250111',
-        "new": '20250118',
-        "target": '2025-01-18',
+        "old": '20250125',
+        "new": '20250201',
+        "target": '2025-02-01',
     },
     "output_paths": {
         "total": "周刊/总榜",
