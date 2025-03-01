@@ -2,7 +2,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 
 def main():
-    today = 20250205
+    today = (datetime.now()-timedelta(days=1)).replace(hour=0, minute=0,second=0,microsecond=0).strftime('%Y%m%d')
     now_time_data = datetime.strptime(str(today), '%Y%m%d').strftime('%Y%m%d')
     new_time_data = (datetime.strptime(str(today), '%Y%m%d') + timedelta(days=1)).strftime('%Y%m%d')
     old_time_data = (datetime.strptime(str(today), '%Y%m%d') - timedelta(days=1)).strftime('%Y%m%d')

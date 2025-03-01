@@ -2,9 +2,11 @@ import pandas as pd
 import os
 from openpyxl.utils import get_column_letter
 from datetime import datetime, timedelta
+import yaml
+web_uploader = __import__('模块-上传网站')
 
 def main():
-    today_date = 20250205  # 旧曲日期
+    today_date = (datetime.now()-timedelta(days=1)).replace(hour=0, minute=0,second=0,microsecond=0).strftime('%Y%m%d')
 
     old_time_toll = datetime.strptime(str(today_date), '%Y%m%d').strftime('%Y%m%d')
     new_time_toll = (datetime.strptime(str(today_date), '%Y%m%d') + timedelta(days=1)).strftime('%Y%m%d')
@@ -139,5 +141,25 @@ def update_existing_songs(df):
     existing_df = pd.read_excel('收录曲目.xlsx')
     return pd.concat([existing_df, df_selected[~df_selected['bvid'].isin(existing_df['bvid'])]])
 
+def upload():
+    '''
+    上传文件到数据服务器
+    '''
+    with open("CONFIG_STAT.yml",encoding='utf-8') as file:
+            data = yaml.safe_load(file)
+            HOST = data['HOST']
+            PORT = data['PORT']
+            USERNAME = data['USERNAME']
+            PASSWORD = data['PASSWORD']
+            REMOTE_PATH = data['REMOTE_PATH']
+            local_files = data['local_files']
+
+    ssh = web_uploader.connect_ssh(HOST, PORT, USERNAME, PASSWORD)
+    sftp = ssh.open_sftp()  
+    web_uploader.upload_files(sftp, local_files, REMOTE_PATH)
+    web_uploader.close_connections(sftp, ssh)
+
 if __name__ == "__main__":
     main()
+    upload()
+    

@@ -12,16 +12,16 @@ CONFIG = {
         'view', 'favorite', 'coin', 'like', 'image_url'
     ],
     "dates": {
-        "old": '20250101',
-        "new": '20250201',
-        "target": '2025-01',
+        "old": '20250201',
+        "new": '20250301',
+        "target": '2025-02',
     },
     "output_paths": {
         "total": "月刊/总榜",
         "new_song": "月刊/新曲榜"
     }
 }
-CONFIG["dates"]["previous"] = (datetime.strptime('2024-10', '%Y-%m') - relativedelta(months=1)).strftime('%Y-%m')
+CONFIG["dates"]["previous"] = (datetime.strptime(CONFIG['dates']['target'], '%Y-%m') - relativedelta(months=1)).strftime('%Y-%m')
 
 def read_data(file_path, columns=None):
     return pd.read_excel(file_path, usecols=columns)
@@ -31,6 +31,7 @@ def calculate_differences(new, old):
 
 def calculate_scores(view, favorite, coin, like, copyright):
     copyright = 1 if copyright in [1, 3] else 2
+    coin = 1 if (coin == 0 and view > 0 and favorite > 0 and like > 0) else coin
     fixA = 0 if coin <= 0 else (1 if copyright == 1 else ceil(max(1, (view + 20 * favorite + 40 * coin + 10 * like) / (200 * coin)) * 100) / 100)
     fixB = 0 if view + 20 * favorite <=0 else ceil(min(1, 3 * (20 * coin + 10 * like) / (view + 20 * favorite)) * 100) / 100
     fixC = 0 if like + favorite <= 0 else ceil(min(1, (like + favorite + 20 * coin * fixA)/(2 * like + 2 * favorite)) * 100) / 100

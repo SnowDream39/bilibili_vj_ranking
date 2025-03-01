@@ -29,9 +29,9 @@ CONFIG = {
         "padding": "5",
         "label_widths": { 
             "basic": 20,   
-            "rate": 20,     # 比率值（ViewR等）
-            "point": 40,    # 点数值（ViewP等）和总分
-            "fix": 20       # Fix值
+            "rate": 20,     
+            "point": 40,    
+            "fix": 20      
         }
     }
 }
@@ -40,6 +40,7 @@ class ScoreCalculator:
     @staticmethod
     def calculate_values(view, favorite, coin, like, copyright):
         copyright = 1 if copyright in [1, 3] else 2
+        coin = 1 if (coin == 0 and view > 0 and favorite > 0 and like > 0) else coin
         fixA = 0 if coin <= 0 else (1 if copyright == 1 else ceil(max(1, (view + 20 * favorite + 40 * coin + 10 * like) / (200 * coin)) * 100) / 100)
         fixB = 0 if view + 20 * favorite <= 0 else ceil(min(1, 3 * max(0, (20 * coin + 10 * like)) / (view + 20 * favorite)) * 100) / 100
         fixC = 0 if like + favorite <= 0 else ceil(min(1, (like + favorite + 20 * coin * fixA)/(2 * like + 2 * favorite)) * 100) / 100
@@ -105,13 +106,13 @@ class PlotManager:
         
         self.labels = {}
         label_groups = [
-            [  # 两列布局
+            [  
                 [("view", "View"), ("viewR", "ViewR"), ("viewP", "ViewP")],
                 [("favorite", "Fav"), ("favoriteR", "FavR"), ("favoriteP", "FavP")],
                 [("coin", "Coin"), ("coinR", "CoinR"), ("coinP", "CoinP")],
                 [("like", "Like"), ("likeR", "LikeR"), ("likeP", "LikeP")]
             ],
-            [  # Fix值和总分
+            [ 
                 [("fixA", "FixA")],
                 [("fixB", "FixB")],
                 [("fixC", "FixC")],
@@ -119,7 +120,6 @@ class PlotManager:
             ]
         ]
         
-        # 创建左侧标签组
         left_frame = ttk.Frame(self.value_frame)
         left_frame.grid(row=0, column=0, padx=2)
         
@@ -134,7 +134,6 @@ class PlotManager:
                 label.grid(row=row, column=col, sticky="w", padx=2, pady=1)
                 self.labels[key] = label
         
-        # 创建右侧标签组
         right_frame = ttk.Frame(self.value_frame)
         right_frame.grid(row=0, column=1, padx=2)
         
@@ -153,7 +152,6 @@ class PlotManager:
         control_frame = ttk.Frame(self.main_frame)
         control_frame.grid(row=6, column=0, columnspan=2, sticky="we", pady=2)
         
-        # 使用更紧凑的布局
         ttk.Label(control_frame, text="Max:", 
                  font=CONFIG["gui_config"]["font"]).grid(row=0, column=0, padx=2)
         self.max_value_entry = ttk.Entry(control_frame, font=CONFIG["gui_config"]["font"], width=8)
@@ -204,7 +202,6 @@ class PlotManager:
         self.fig.clear()
         ax = self.fig.add_subplot(111)
         
-        # 使用固定数量的采样点，而不是基于区间长度
         x = np.linspace(CONFIG["plot_config"]["min_x"], 
                        values['max_value'], 
                        CONFIG["plot_config"]["sample_points"])
@@ -213,7 +210,6 @@ class PlotManager:
         var_map = {'View': 'view', 'Favorite': 'favorite', 'Coin': 'coin', 'Like': 'like'}
         var_key = var_map[values['variable']]
         
-        # 使用向量化操作代替循环
         def calculate_point(x_val):
             temp_values = values.copy()
             temp_values[var_key] = x_val
@@ -229,7 +225,6 @@ class PlotManager:
         
         ax.plot(x, y, label=f'Point vs {values["variable"]}', color='dodgerblue', linewidth=1.5)
         
-        # 添加当前点标注
         current_x = values[var_key]
         if CONFIG["plot_config"]["min_x"] <= current_x <= values['max_value']:
             *_, current_y, _, _, _ = ScoreCalculator.calculate_values(
@@ -247,7 +242,6 @@ class PlotManager:
                 fontweight='bold'
             )
         
-        # 简化标题
         title = f'Point vs {values["variable"]}'
         ax.set_title(title, fontsize=CONFIG["plot_config"]["font_size"]["title"])
         
