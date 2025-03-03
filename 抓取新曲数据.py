@@ -95,7 +95,7 @@ class Config:
     MAX_RETRIES = 3
     SEMAPHORE_LIMIT = 5
     MIN_VIDEO_DURATION = 20
-    SLEEP_TIME = 0.8
+    SLEEP_TIME = 1.8
     OUTPUT_DIR = Path("新曲数据")
 
 class RetryHandler:
