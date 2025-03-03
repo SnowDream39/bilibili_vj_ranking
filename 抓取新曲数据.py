@@ -15,7 +15,7 @@ async def main():
 
     scraper = BilibiliScraper("new", days=2, config=config, proxy=Clash())
     scraper.search_options = SearchOptions(video_zone_type=video_zone.VideoZoneTypes.MUSIC)
-    videos = await scraper.process_videos()
+    videos = await scraper.fetch_new_songs()
     await scraper.save_to_excel(videos)
 
 if __name__ == "__main__":

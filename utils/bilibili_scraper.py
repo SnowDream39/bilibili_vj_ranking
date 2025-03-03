@@ -83,12 +83,20 @@ class BilibiliScraper:
     today: datetime = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
     search_options: SearchOptions = SearchOptions()
     proxy = None
-    def __init__(self, mode: Literal["new", "main", "special"], days: int = 2, config: Config = Config(), proxy: Proxy = None):
+    def __init__(self, mode: Literal["new", "main", "special"], input_file: str | Path = None, days: int = 2, config: Config = Config(), proxy: Proxy = None):
         self.mode = mode
-        self.start_time = self.today - timedelta(days=days)
         self.config = config
         self.config.OUTPUT_DIR.mkdir(exist_ok=True)
         self.sem = asyncio.Semaphore(self.config.SEMAPHORE_LIMIT)
+
+        if self.mode == "new":
+            self.filename = self.config.OUTPUT_DIR / f"新曲{self.today.strftime('%Y%m%d')}.xlsx"
+            self.start_time = self.today - timedelta(days=days)
+        elif self.mode == "main":
+            self.filename = self.config.OUTPUT_DIR / f"{self.today.strftime('%Y%m%d')}.xlsx"
+            self.songs = pd.read_excel(input_file)
+            self._ensure_datatypes()
+            
 
         if proxy:
             request_settings.set_proxy(proxy.proxy_server)
@@ -96,7 +104,11 @@ class BilibiliScraper:
             self.config.SLEEP_TIME = 0.5
             self.config.SEMAPHORE_LIMIT = 10
 
-
+    def _ensure_datatypes(self) -> None:
+        required_columns = ['name', 'bvid', 'author', 'copyright', 'synthesizer', 'vocal', 'type']
+        missing_columns = set(required_columns) - set(self.songs.columns)
+        if missing_columns:
+            raise ValueError(f"输入文件缺少必要列: {missing_columns}")
 
     @staticmethod
     def clean_tags(text: str) -> str:
@@ -149,7 +161,6 @@ class BilibiliScraper:
         except Exception as e:
             print('搜索分区视频时出错：', e)
 
-
     def search_by_type(self, keyword, page, search_options: SearchOptions):
         """把bilibili-api的搜索函数改一种接口"""
         return search.search_by_type(
@@ -162,31 +173,6 @@ class BilibiliScraper:
             time_end= search_options.time_end,
             page=page
         )
-
-    async def search_videos(self, keyword: str) -> List[str]:
-        """搜索某一个关键词的视频，搜索到日期到了为止"""
-        bvids = []
-        page = 1
-
-        while True:
-            print(f"Searching for keyword: {keyword}, page: {page}")
-            result = await self.search_by_type(keyword, page, self.search_options)
-
-            videos = result.get('result', [])
-            if not videos:
-                break
-
-            for item in videos:
-                pubdate = datetime.fromtimestamp(item['pubdate'])
-                if pubdate >= self.start_time:
-                    bvids.append(item['bvid'])
-                    print(f"发现视频： {item['bvid']}")
-                else:
-                    return bvids
-            page += 1
-
-        return bvids
-
 
     async def get_video_list_by_search(self):
         """使用搜索获取新曲"""
@@ -242,10 +228,15 @@ class BilibiliScraper:
 
     async def fetch_video_detail(self, bvid: str) -> Optional[VideoInfo]:
         """获取一个视频的详细信息"""
+        if self.mode in ["new", "special"]:
+            extra_info = True
+        else:
+            extra_info = False
         try:
             v = video.Video(bvid, credential=Credential())
             info = await v.get_info()
-            tags = [tag['tag_name'] for tag in await v.get_tags()]
+            if extra_info:
+                tags = [tag['tag_name'] for tag in await v.get_tags()]
             
             if info['duration'] <= self.config.MIN_VIDEO_DURATION:
                 print(f"跳过短视频： {bvid}")
@@ -260,8 +251,8 @@ class BilibiliScraper:
                 copyright=info['copyright'],
                 pubdate=datetime.fromtimestamp(info['pubdate']).strftime('%Y-%m-%d %H:%M:%S'),
                 duration=self.convert_duration(info['duration']),
-                tags='、'.join(tags),
-                description=info['desc'],
+                tags='、'.join(tags) if extra_info else None,
+                description=info['desc'] if extra_info else None,
                 page=len(info['pages']),
                 view=info['stat']['view'],
                 favorite=info['stat']['favorite'],
@@ -272,6 +263,35 @@ class BilibiliScraper:
         except Exception as e:
             print(f"Error fetching details for {bvid}: {str(e)}")
             return None
+
+    async def update_old_songs(self, videos: List[VideoInfo]) -> None:
+        """旧曲用：合并数据"""
+        songs = self.songs
+        songs.set_index('bvid', inplace=True)
+        songs.loc[:, 'view'] = 0
+        
+        update_data = pd.DataFrame([{
+            'bvid': video.bvid,
+            'view': video.view,
+            'favorite': video.favorite,
+            'coin': video.coin,
+            'like': video.like,
+            'title': video.title,
+            'uploader': video.uploader,
+            'page': video.page,
+            'duration': video.duration,
+            'image_url': video.image_url
+        } for video in videos])
+
+        songs.reset_index(inplace=True)
+        songs = pd.merge(songs, update_data, on='bvid', how='left', suffixes=('', '_new'))
+
+        for col in ['view', 'favorite', 'coin', 'like', 'title', 'uploader', 'page', 'duration', 'image_url']:
+            songs[col] = songs[col + '_new'].combine_first(songs[col])
+
+        songs = songs[songs['view'] > 0].sort_values('view', ascending=False, inplace=True)
+        songs.drop(columns=[col + '_new' for col in ['view', 'favorite', 'coin', 'like', 'title', 'uploader', 'page', 'duration', 'image_url']], inplace=True)
+        self.songs = songs
 
     async def get_video_details(self, bvids: List[str]) -> List[VideoInfo]:
         """获取列表中所有视频详细信息"""
@@ -289,7 +309,7 @@ class BilibiliScraper:
         results = await asyncio.gather(*tasks)
         return [r for r in results if r is not None]
 
-    async def process_videos(self) -> List[Dict[str, Any]]:
+    async def process_new_songs(self) -> List[Dict[str, Any]]:
         """抓取新曲数据"""
         print("Starting to get all bvids")
         bvids = await self.get_all_bvids()
@@ -297,13 +317,20 @@ class BilibiliScraper:
         
         videos = await self.get_video_details(bvids)
         return [asdict(video) for video in videos]
+    
+    async def process_old_songs(self) -> List[Dict[str, Any]]:
+        """抓取旧曲数据"""
+        print("开始获取旧曲数据")
+        bvids = self.songs['bvid'].to_list()
+        videos = await self.get_video_details(bvids)
+        self.update_old_songs(videos)
+        return self.songs.to_dict(orient='records')
 
     async def save_to_excel(self, videos: List[Dict[str, Any]]) -> None:
         """导出数据"""
         df = pd.DataFrame(videos)
         df = df.sort_values(by='view', ascending=False)
         
-        filename = self.config.OUTPUT_DIR / f"新曲{self.today.strftime('%Y%m%d')}.xlsx"
 
         columns = ['title', 'bvid', 'name', 'author', 'uploader', 'copyright', 
                 'synthesizer', 'vocal', 'type', 'pubdate', 'duration', 'page', 
@@ -312,4 +339,4 @@ class BilibiliScraper:
             columns.insert(9, "tags")
             columns.insert(10, "description")
                     
-        output_excel(df, filename, columns)
+        output_excel(df, self.filename, columns)
