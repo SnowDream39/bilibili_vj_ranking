@@ -25,5 +25,6 @@ __pycache__/
 *萌百*
 *测试*
 *调试*
+*.yaml
 *.yml
 *.xlsx

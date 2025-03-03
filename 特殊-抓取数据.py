@@ -9,63 +9,13 @@ from openpyxl.utils import get_column_letter
 from dataclasses import dataclass, asdict
 from typing import List, Optional, Dict, Any
 from pathlib import Path
+
 from utils.clash import Clash
+from utils.bilibili_scraper import Config, VideoInfo, SearchOptions, RetryHandler, BilibiliScraper
+
 
 special_name="梦的结唱4"
-@dataclass
-class VideoInfo:
-    """视频信息数据类"""
-    title: str
-    bvid: str
-    name: str
-    author: str 
-    uploader: str = ""
-    copyright: int = 0
-    synthesizer: str = ""
-    vocal: str = ""
-    type: str = ""
-    pubdate: str = ""
-    duration: str = ""
-    tags: str = ""
-    description: str = ""
-    page: int = 0
-    view: int = 0
-    favorite: int = 0
-    coin: int = 0
-    like: int = 0
-    image_url: str = ""
 
-class Config:
-    """配置类"""
-    KEYWORDS = [
-            "梦的结唱","夢ノ結唱"
-    ]
-    HEADERS = [
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/89.0 Safari/537.36',
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/91.0.864.67 Safari/537.36',
-    ]
-
-    MAX_RETRIES = 3
-    SEMAPHORE_LIMIT = 5
-    MIN_VIDEO_DURATION = 20
-    SLEEP_TIME = 0
-    OUTPUT_DIR = Path("特殊/特殊原始数据")
-    USE_PROXY = True
-
-class RetryHandler:
-    """重试处理器"""
-    @staticmethod
-    async def retry_async(func, *args, max_retries=Config.MAX_RETRIES, **kwargs):
-        for attempt in range(max_retries):
-            try:
-                return await func(*args, **kwargs)
-            except Exception as e:
-                print(f"Attempt {attempt + 1}/{max_retries} failed: {str(e)}")
-                if attempt == max_retries - 1:
-                    raise
-                await asyncio.sleep(Config.SLEEP_TIME)
-        return None
 
 class BilibiliScraper:
     def __init__(self):
@@ -112,7 +62,7 @@ class BilibiliScraper:
                     time_start='2025-02-01',
                     time_end='2025-03-03',
                     video_zone_type=video_zone.VideoZoneTypes.MUSIC,
-                    order_type=search.OrderVideo.CLICK,
+                    order_sort=search.OrderVideo.CLICK,
                     page=page
                 )
 
