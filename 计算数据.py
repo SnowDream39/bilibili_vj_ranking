@@ -3,7 +3,8 @@ import pandas as pd
 from math import ceil, floor
 from datetime import datetime, timedelta
 
-today = datetime.now().replace(hour=0, minute=0,second=0,microsecond=0).strftime('%Y%m%d')
+today = (datetime.now()-timedelta(days=1)).replace(hour=0, minute=0,second=0,microsecond=0).strftime('%Y%m%d')
+    
 old_time_toll = datetime.strptime(str(today), '%Y%m%d').strftime('%Y%m%d')
 new_time_toll = (datetime.strptime(str(today), '%Y%m%d') + timedelta(days=1)).strftime('%Y%m%d')  
 old_time_new = f'新曲{old_time_toll}'
@@ -28,6 +29,7 @@ def read_data(file_path, columns=None):
 def calculate_scores(view, favorite, coin, like, copyright):
     ''' 公式 '''
     copyright = 1 if copyright in [1, 3] else 2
+    coin = 1 if (coin == 0 and view > 0 and favorite > 0 and like > 0) else coin
     fixA = 0 if coin <= 0 else (1 if copyright == 1 else ceil(max(1, (view + 20 * favorite + 40 * coin + 10 * like) / (200 * coin)) * 100) / 100)
     fixB = 0 if view + 20 * favorite <= 0 else ceil(min(1, 3 * max(0, (20 * coin + 10 * like)) / (view + 20 * favorite)) * 100) / 100
     fixC = 0 if like + favorite <= 0 else ceil(min(1, (like + favorite + 20 * coin * fixA)/(2 * like + 2 * favorite)) * 100) / 100
@@ -40,6 +42,7 @@ def calculate_scores(view, favorite, coin, like, copyright):
     return viewR, favoriteR, coinR, likeR, fixA, fixB, fixC
 
 def calculate_points(diff, scores):
+    diff['coin'] =  1 if (diff['coin'] == 0 and diff['view'] > 0 and diff['favorite'] > 0 and diff['like'] > 0) else diff['coin']
     viewR, favoriteR, coinR, likeR = scores[:4]
     viewP = diff['view'] * viewR
     favoriteP = diff['favorite'] * favoriteR
@@ -71,7 +74,7 @@ def process_records(records, old_data, new_data, data_type="data"):
                 collected_match = collected_data['bvid'] == bvid
                 if collected_match.any():
                     collected_record = collected_data.loc[collected_match].squeeze()
-                    for field in ['author', 'name', 'synthesizer', 'copyright', 'vocal', 'type']:
+                    for field in ['name', 'author', 'synthesizer', 'copyright', 'vocal', 'type']:
                         new[field] = collected_record.get(field, new[field])
 
             diff = {col: new[col] - old.get(col, 0) for col in ['view', 'favorite', 'coin', 'like']}

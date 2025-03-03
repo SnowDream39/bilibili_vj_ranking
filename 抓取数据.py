@@ -1,4 +1,5 @@
 import asyncio
+import re
 import pandas as pd
 from datetime import datetime
 from pathlib import Path
@@ -75,7 +76,7 @@ class SongDataFetcher:
                 stat = info['stat']
                 owner = info['owner']
                 return VideoData(
-                    title= info['title'],
+                    title = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F\u200B-\u200F\u2028-\u202F\u205F-\u206F\uFEFF\uFFFE-\uFFFF]','', info['title']),
                     bvid= song['bvid'],
                     name= song['name'],
                     author = song['author'],

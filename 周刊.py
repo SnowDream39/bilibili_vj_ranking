@@ -11,9 +11,9 @@ CONFIG = {
         'view', 'favorite', 'coin', 'like', 'image_url'
     ],
     "dates": {
-        "old": '20250111',
-        "new": '20250118',
-        "target": '2025-01-18',
+        "old": '20250222',
+        "new": '20250301',
+        "target": '2025-03-01',
     },
     "output_paths": {
         "total": "周刊/总榜",
@@ -32,6 +32,7 @@ def calculate_differences(new, old):
 
 def calculate_scores(view, favorite, coin, like, copyright):
     copyright = 1 if copyright in [1, 3] else 2
+    coin = 1 if (coin == 0 and view > 0 and favorite > 0 and like > 0) else coin
     fixA = 0 if coin <= 0 else (1 if copyright == 1 else ceil(max(1, (view + 20 * favorite + 40 * coin + 10 * like) / (200 * coin)) * 100) / 100)
     fixB = 0 if view + 20 * favorite <= 0 else ceil(min(1, 3 * max(0, (20 * coin + 10 * like)) / (view + 20 * favorite)) * 100) / 100
     fixC = 0 if like + favorite <= 0 else ceil(min(1, (like + favorite + 20 * coin * fixA)/(2 * like + 2 * favorite)) * 100) / 100
@@ -45,6 +46,7 @@ def calculate_scores(view, favorite, coin, like, copyright):
 
 def calculate_points(diff, scores):
     """计算总分"""
+    diff['coin'] =  1 if (diff['coin'] == 0 and diff['view'] > 0 and diff['favorite'] > 0 and diff['like'] > 0) else diff['coin']
     viewR, favoriteR, coinR, likeR, fixA = scores[:5]
     viewP = diff['view'] * viewR
     favoriteP = diff['favorite'] * favoriteR
