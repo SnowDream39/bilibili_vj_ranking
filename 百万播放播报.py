@@ -3,8 +3,8 @@ from datetime import datetime, timedelta
 
 # modes = ["any", "week"]
 
-mode = 1
-date2 = "20250301"
+mode = 0
+date2 = "20250303"
 
 if mode == 0: 
     date1 = (datetime.strptime(date2, "%Y%m%d") - timedelta(days=1)).strftime("%Y%m%d")

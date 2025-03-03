@@ -42,6 +42,7 @@ def calculate_scores(view, favorite, coin, like, copyright):
     return viewR, favoriteR, coinR, likeR, fixA, fixB, fixC
 
 def calculate_points(diff, scores):
+    diff['coin'] =  1 if (diff['coin'] == 0 and diff['view'] > 0 and diff['favorite'] > 0 and diff['like'] > 0) else diff['coin']
     viewR, favoriteR, coinR, likeR = scores[:4]
     viewP = diff['view'] * viewR
     favoriteP = diff['favorite'] * favoriteR

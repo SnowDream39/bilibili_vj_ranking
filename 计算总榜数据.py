@@ -33,12 +33,13 @@ def calculate_scores(view, favorite, coin, like, copyright):
 
     return viewR, favoriteR, coinR, likeR, fixA, fixB, fixC
 
-def calculate_points(data, scores):
+def calculate_points(diff, scores):
+    diff['coin'] =  1 if (diff['coin'] == 0 and diff['view'] > 0 and diff['favorite'] > 0 and diff['like'] > 0) else diff['coin']
     viewR, favoriteR, coinR, likeR = scores[:4]
-    viewP = data['view'] * viewR
-    favoriteP = data['favorite'] * favoriteR
-    coinP = data['coin'] * coinR * scores[4]
-    likeP = data['like'] * likeR
+    viewP = diff['view'] * viewR
+    favoriteP = diff['favorite'] * favoriteR
+    coinP = diff['coin'] * coinR * scores[4]
+    likeP = diff['like'] * likeR
     return viewP + favoriteP + coinP + likeP
 
 def calculate_ranks(df):
