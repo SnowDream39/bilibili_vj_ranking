@@ -63,6 +63,7 @@ class Config:
     MIN_VIDEO_DURATION: int = 20
     SLEEP_TIME: int = 1.8
     OUTPUT_DIR: Path = Path("新曲数据")
+    NAME: str | None = None
 
 class RetryHandler:
     """重试处理器"""
@@ -83,10 +84,20 @@ class BilibiliScraper:
     today: datetime = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
     search_options: SearchOptions = SearchOptions()
     proxy = None
-    def __init__(self, mode: Literal["new", "main", "special"], input_file: str | Path = None, days: int = 2, config: Config = Config(), proxy: Proxy = None):
+    def __init__(self, 
+                 mode: Literal["new", "main", "special"], 
+                 input_file: str | Path = None, 
+                 days: int = 2,
+                 config: Config = Config(), 
+                 search_options: SearchOptions = SearchOptions(),
+                 proxy: Proxy = None,
+                 special_name: str | None = None):
         self.mode = mode
+        self.special_name = special_name
         self.config = config
         self.config.OUTPUT_DIR.mkdir(exist_ok=True)
+        self.search_options = search_options
+
         self.sem = asyncio.Semaphore(self.config.SEMAPHORE_LIMIT)
 
         if self.mode == "new":
@@ -96,6 +107,8 @@ class BilibiliScraper:
             self.filename = self.config.OUTPUT_DIR / f"{self.today.strftime('%Y%m%d')}.xlsx"
             self.songs = pd.read_excel(input_file)
             self._ensure_datatypes()
+        elif self.mode == "special":
+            self.filename = self.config.OUTPUT_DIR / f"{self.config.NAME}.xlsx"
             
 
         if proxy:
@@ -168,13 +181,12 @@ class BilibiliScraper:
             search_type= search_options.search_type,
             order_type= search_options.order_type,
             video_zone_type= search_options.video_zone_type,
-            order_sort= search_options.video_zone_type,
             time_start= search_options.time_start,
             time_end= search_options.time_end,
             page=page
         )
 
-    async def get_video_list_by_search(self):
+    async def get_video_list_by_search(self, time_filtering: bool = False):
         """使用搜索获取新曲"""
         async def sem_fetch(keyword: str, page: int) -> Dict:
             async with self.sem:
@@ -186,12 +198,16 @@ class BilibiliScraper:
                     return {'end': True, 'keyword': keyword, 'bvids': []}
                 bvids = []
                 for item in videos:
-                    pubdate = datetime.fromtimestamp(item['pubdate'])
-                    if pubdate >= self.start_time:
+                    if time_filtering:
+                        pubdate = datetime.fromtimestamp(item['pubdate'])
+                        if pubdate >= self.start_time:
+                            bvids.append(item['bvid'])
+                            print(f"发现视频： {item['bvid']}")
+                        else:
+                            return {'end': True, 'keyword': keyword, 'bvids': bvids}
+                    else:
                         bvids.append(item['bvid'])
                         print(f"发现视频： {item['bvid']}")
-                    else:
-                        return {'end': True, 'keyword': keyword, 'bvids': bvids}
                 await asyncio.sleep(self.config.SLEEP_TIME)
                 return {'end': False, 'keyword': keyword, 'bvids': bvids}
             
@@ -215,14 +231,19 @@ class BilibiliScraper:
     async def get_all_bvids(self) -> List[str]:
         """使用搜索和分区两种方式"""
         all_bvids = set()
-
+        
         # 从关键词搜索获取视频
-        bvids = await self.get_video_list_by_search()
-        all_bvids.update(bvids)
+        if self.mode == "new":
+            bvids = await self.get_video_list_by_search(time_filtering=True)
+            all_bvids.update(bvids)
 
-        # 从分区最新获取视频
-        bvids = await self.get_video_list_by_zone()
-        all_bvids.update(bvids)
+            # 从分区最新获取视频
+            bvids = await self.get_video_list_by_zone()
+            all_bvids.update(bvids)
+        else:                                #也就是 mode == "special"
+            bvids = await self.get_video_list_by_search(time_filtering=False)
+            all_bvids.update(bvids)
+            
 
         return list(all_bvids)
 
