@@ -29,6 +29,8 @@ class VideoInfo:
     coin: int = 0
     like: int = 0
     image_url: str = ""
+    tags: str = ""
+    description: str = ""
 
 class Config:
     """配置类"""
@@ -189,6 +191,7 @@ class BilibiliScraper:
                 video for video in video_list['data']['archives']
                 if datetime.fromtimestamp(video['pubdate']) > self.start_time
             ]
+            print(f"获取分区最新： {rid}，第 {page_num} 页")
             if not recent_videos:
                 break
 
@@ -221,10 +224,12 @@ class BilibiliScraper:
                 favorite=info['stat']['favorite'],
                 coin=info['stat']['coin'],
                 like=info['stat']['like'],
-                image_url=info['pic']
+                image_url=info['pic'],
+                tags='、'.join([tag['tag_name'] for tag in await v.get_tags()]),
+                description=info['desc'], 
             )
         except Exception as e:
-            print(f"Error fetching details for {bvid}: {str(e)}")
+            print(f"爬取 {bvid} 时出错: {str(e)}")
             return None
 
     async def get_video_details(self, bvids: List[str]) -> List[VideoInfo]:
@@ -241,9 +246,9 @@ class BilibiliScraper:
         return [r for r in results if r is not None]
 
     async def process_videos(self) -> List[Dict[str, Any]]:
-        print("Starting to get all bvids")
+        print("开始获取bvid")
         bvids = await self.get_all_bvids()
-        print(f"Total bvids found: {len(bvids)}")
+        print(f"一共获取到 {len(bvids)} 个视频的bvid")
         
         videos = await self.get_video_details(bvids)
         return [asdict(video) for video in videos]
@@ -254,7 +259,7 @@ class BilibiliScraper:
 
         columns = ['title', 'bvid', 'name', 'author', 'uploader', 'copyright', 
                   'synthesizer', 'vocal', 'type', 'pubdate', 'duration', 'page', 
-                  'view', 'favorite', 'coin', 'like', 'image_url']
+                  'view', 'favorite', 'coin', 'like', 'image_url','tags','description']
         
         df = df[columns]
         filename = Config.OUTPUT_DIR / f"新曲{self.today.strftime('%Y%m%d')}.xlsx"

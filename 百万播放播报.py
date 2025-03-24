@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 # modes = ["any", "week"]
 
 mode = 0
-date2 = "20250303"
+date2 = (datetime.now()).replace(hour=0, minute=0,second=0,microsecond=0).strftime('%Y%m%d')
 
 if mode == 0: 
     date1 = (datetime.strptime(date2, "%Y%m%d") - timedelta(days=1)).strftime("%Y%m%d")
@@ -148,3 +148,4 @@ def record_view_change(date1, date2):
 
 if __name__ == "__main__":
     record_view_change(date1, date2)
+    a = input()
