@@ -10,7 +10,7 @@ from utils.bilibili_scraper import Config, SearchOptions, BilibiliScraper
 
 
 config = Config(
-    KEYWORDS=['夢ノ結唱', '梦的结唱', 'Syntheiszer ROSE', 'Synthesizer POPY', 'ksm', 'ykn', '户山香澄', '凑友希那'],
+    KEYWORDS=['夢ノ結唱', '梦的结唱', 'Syntheiszer ROSE', 'Synthesizer POPY', 'ksm', 'ykn', '香澄', '友希那'],
     OUTPUT_DIR=Path('特殊/特殊原始数据'),
     NAME="梦的结唱4"
 )

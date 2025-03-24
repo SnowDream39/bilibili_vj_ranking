@@ -2,7 +2,7 @@ import asyncio
 import pandas as pd
 from math import ceil, floor
 
-song_data = '梦的结唱'
+song_data = '梦的结唱4自动标注'
 
 CONFIG = {
     "columns": [
