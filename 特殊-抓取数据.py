@@ -2,7 +2,7 @@ import asyncio
 import aiohttp
 import pandas as pd
 from bilibili_api import search, video, Credential
-from datetime import datetime, timedelta
+from datetime import datetime
 import re
 import random
 from openpyxl.utils import get_column_letter

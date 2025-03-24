@@ -16,6 +16,7 @@ CONFIG = {
         "output_path": f"特殊/特殊排行榜/{song_data}.xlsx"
     }
 }
+
 def main_processing(input_path, output_path):
     df = pd.read_excel(input_path, usecols=CONFIG['columns'])
     df = process_records(
