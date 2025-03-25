@@ -1,21 +1,16 @@
 import asyncio
 import aiohttp
 import pandas as pd
-from bilibili_api import search, video, Credential, request_settings
+from bilibili_api import request_settings, search, video, Credential
 from datetime import datetime, timedelta
 import re
 import random
 from dataclasses import dataclass, asdict, field
-from typing import List, Optional, Dict, Literal, Any
+from typing import List, Optional, Dict, Literal, Any, Union
 from pathlib import Path
-import os
 import json
-from copy import copy
-
-from utils.excel import output_excel
-from utils.proxy import Proxy
-
-
+from utils.io_utils import save_to_excel
+from utils.proxy import Proxy 
 
 @dataclass
 class VideoInfo:
@@ -31,40 +26,46 @@ class VideoInfo:
     type: str = ""
     pubdate: str = ""
     duration: str = ""
-    tags: str = ""
-    description: str = ""
     page: int = 0
     view: int = 0
     favorite: int = 0
     coin: int = 0
     like: int = 0
     image_url: str = ""
+    tags: str = ""
+    description: str = ""
+    
 
 @dataclass
 class SearchOptions:
     search_type: search.SearchObjectType = search.SearchObjectType.VIDEO
     order_type: search.OrderVideo = search.OrderVideo.PUBDATE
-    video_zone_type: int | None = None
-    order_sort: int | None = None
-    time_start: str | None = None
-    time_end: str | None = None
+    video_zone_type: Optional[int] = None
+    order_sort: Optional[int] = None
+    time_start: Optional[str] = None
+    time_end: Optional[str] = None
 
 @dataclass
 class Config:
-    KEYWORDS: list[str] = field(default_factory=lambda: ['初音未来'])
-    HEADERS: list[str] = field(default_factory=lambda: [
+    KEYWORDS: List[str] = field(default_factory=list)
+    HEADERS: List[str] = field(default_factory=lambda: [
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Firefox/89.0 Safari/537.36',
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/91.0.864.67 Safari/537.36',
     ])
-
-    MAX_RETRIES: int = 3
+    MAX_RETRIES: int = 5
     SEMAPHORE_LIMIT: int = 5
     MIN_VIDEO_DURATION: int = 20
-    SLEEP_TIME: int = 1.8
+    SLEEP_TIME: int = 0.8
     OUTPUT_DIR: Path = Path("新曲数据")
-    NAME: str | None = None
+    NAME: Optional[str] = None
 
+    @staticmethod
+    def load_keywords(file_path: str = "keywords.json") -> List[str]:
+        with open(Path(file_path), "r", encoding="utf-8") as f:
+            keywords = json.load(f)
+        return keywords
+    
 class RetryHandler:
     """重试处理器"""
     @staticmethod
@@ -79,49 +80,39 @@ class RetryHandler:
                 await asyncio.sleep(Config.SLEEP_TIME)
         return None
 
-
 class BilibiliScraper:
     today: datetime = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
     search_options: SearchOptions = SearchOptions()
     proxy = None
     def __init__(self, 
-                 mode: Literal["new", "main", "special"], 
-                 input_file: str | Path = None, 
+                 mode: Literal["new", "old", "special"], 
+                 input_file: Union[str, Path] = None, 
                  days: int = 2,
                  config: Config = Config(), 
                  search_options: SearchOptions = SearchOptions(),
-                 proxy: Proxy = None,
-                 special_name: str | None = None):
+                 proxy: Optional[Proxy] = None,
+                ):
         self.mode = mode
-        self.special_name = special_name
         self.config = config
         self.config.OUTPUT_DIR.mkdir(exist_ok=True)
         self.search_options = search_options
-
+        self.session = None
         self.sem = asyncio.Semaphore(self.config.SEMAPHORE_LIMIT)
 
         if self.mode == "new":
             self.filename = self.config.OUTPUT_DIR / f"新曲{self.today.strftime('%Y%m%d')}.xlsx"
             self.start_time = self.today - timedelta(days=days)
-        elif self.mode == "main":
+        elif self.mode == "old":
             self.filename = self.config.OUTPUT_DIR / f"{self.today.strftime('%Y%m%d')}.xlsx"
             self.songs = pd.read_excel(input_file)
-            self._ensure_datatypes()
         elif self.mode == "special":
             self.filename = self.config.OUTPUT_DIR / f"{self.config.NAME}.xlsx"
-            
 
         if proxy:
             request_settings.set_proxy(proxy.proxy_server)
             self.proxy = proxy
             self.config.SLEEP_TIME = 0.5
-            self.config.SEMAPHORE_LIMIT = 10
-
-    def _ensure_datatypes(self) -> None:
-        required_columns = ['name', 'bvid', 'author', 'copyright', 'synthesizer', 'vocal', 'type']
-        missing_columns = set(required_columns) - set(self.songs.columns)
-        if missing_columns:
-            raise ValueError(f"输入文件缺少必要列: {missing_columns}")
+            self.config.SEMAPHORE_LIMIT = 20
 
     @staticmethod
     def clean_tags(text: str) -> str:
@@ -130,13 +121,20 @@ class BilibiliScraper:
 
     @staticmethod
     def convert_duration(duration: int) -> str:
-        duration -= 1
-        minutes, seconds = divmod(duration, 60)
+        minutes, seconds = divmod(duration - 1, 60)
         return f'{minutes}分{seconds}秒' if minutes > 0 else f'{seconds}秒'
 
+    async def get_session(self):
+        if self.session is None:
+            self.session = aiohttp.ClientSession()
+        return self.session
+
+    async def close_session(self):
+        if self.session:
+            await self.session.close()
+            self.session = None
 
     async def fetch_data(self, url: str) -> Optional[Dict]:
-        """一个通用的请求HTTP的函数"""
         async with aiohttp.ClientSession() as session:
             headers = {'User-Agent': random.choice(self.config.HEADERS)}
             async with session.get(url, headers=headers) as response:
@@ -148,13 +146,10 @@ class BilibiliScraper:
         """从分区获取视频，默认VU区"""
         bvids = []
         page = 1
-
-
-
         try:
             while True:
                 if self.proxy:
-                    self.proxy.random_proxy()
+                    request_settings.set_proxy(self.proxy.proxy_server) 
                 url = f"https://api.bilibili.com/x/web-interface/newlist?rid={rid}&ps={ps}&pn={page}"
                  
                 jsondata = await RetryHandler.retry_async(self.fetch_data, url)
@@ -163,12 +158,12 @@ class BilibiliScraper:
                     video for video in video_list
                     if datetime.fromtimestamp(video['pubdate']) > self.start_time
                 ]
+                print(f"获取分区最新： {rid}，第 {page} 页")
                 if not recent_videos:
                     break
                 bvids.extend(video['bvid'] for video in recent_videos)
                 page += 1
                 await asyncio.sleep(self.config.SLEEP_TIME)
-
             return bvids
 
         except Exception as e:
@@ -191,7 +186,7 @@ class BilibiliScraper:
         async def sem_fetch(keyword: str, page: int) -> Dict:
             async with self.sem:
                 if self.proxy:
-                    self.proxy.random_proxy()
+                    request_settings.set_proxy(self.proxy.proxy_server)  
                 result = await RetryHandler.retry_async(self.search_by_type, keyword, page, self.search_options)
                 videos = result.get('result', [])
                 if not videos:
@@ -211,7 +206,7 @@ class BilibiliScraper:
                 await asyncio.sleep(self.config.SLEEP_TIME)
                 return {'end': False, 'keyword': keyword, 'bvids': bvids}
             
-        keywords = copy(self.config.KEYWORDS)
+        keywords = self.config.KEYWORDS[:]
         page = 1
         bvids = []
         while keywords:
@@ -227,7 +222,6 @@ class BilibiliScraper:
             page += 1
         return bvids
                 
-
     async def get_all_bvids(self) -> List[str]:
         """使用搜索和分区两种方式"""
         all_bvids = set()
@@ -240,11 +234,10 @@ class BilibiliScraper:
             # 从分区最新获取视频
             bvids = await self.get_video_list_by_zone()
             all_bvids.update(bvids)
-        else:                                #也就是 mode == "special"
+        else: # mode == "special"
             bvids = await self.get_video_list_by_search(time_filtering=False)
             all_bvids.update(bvids)
             
-
         return list(all_bvids)
 
     async def fetch_video_detail(self, bvid: str) -> Optional[VideoInfo]:
@@ -272,25 +265,21 @@ class BilibiliScraper:
                 copyright=info['copyright'],
                 pubdate=datetime.fromtimestamp(info['pubdate']).strftime('%Y-%m-%d %H:%M:%S'),
                 duration=self.convert_duration(info['duration']),
-                tags='、'.join(tags) if extra_info else None,
-                description=info['desc'] if extra_info else None,
                 page=len(info['pages']),
                 view=info['stat']['view'],
                 favorite=info['stat']['favorite'],
                 coin=info['stat']['coin'],
                 like=info['stat']['like'],
-                image_url=info['pic']
+                image_url=info['pic'],
+                tags='、'.join(tags) if extra_info else None,
+                description=info['desc'] if extra_info else None,
             )
         except Exception as e:
-            print(f"Error fetching details for {bvid}: {str(e)}")
+            print(f"爬取 {bvid} 时出错: {str(e)}")
             return None
 
     async def update_old_songs(self, videos: List[VideoInfo]) -> None:
         """旧曲用：合并数据"""
-        songs = self.songs
-        songs.set_index('bvid', inplace=True)
-        songs.loc[:, 'view'] = 0
-        
         update_data = pd.DataFrame([{
             'bvid': video.bvid,
             'view': video.view,
@@ -304,24 +293,23 @@ class BilibiliScraper:
             'image_url': video.image_url
         } for video in videos])
 
-        songs.reset_index(inplace=True)
-        songs = pd.merge(songs, update_data, on='bvid', how='left', suffixes=('', '_new'))
-
-        for col in ['view', 'favorite', 'coin', 'like', 'title', 'uploader', 'page', 'duration', 'image_url']:
-            songs[col] = songs[col + '_new'].combine_first(songs[col])
-
-        songs = songs[songs['view'] > 0].sort_values('view', ascending=False, inplace=True)
-        songs.drop(columns=[col + '_new' for col in ['view', 'favorite', 'coin', 'like', 'title', 'uploader', 'page', 'duration', 'image_url']], inplace=True)
-        self.songs = songs
+        self.songs = (
+        self.songs.set_index('bvid')
+        .merge(update_data, on='bvid', how='left', suffixes=('', '_new'))
+        .assign(**{col: lambda df, c=col: df[f"{c}_new"].combine_first(df[c]) for col in ['view', 'favorite', 'coin', 'like', 'title', 'uploader', 'page', 'duration', 'image_url']})
+        .query('view > 0')
+        .sort_values('view', ascending=False)
+        .reset_index()
+        .drop(columns=[f"{col}_new" for col in ['view', 'favorite', 'coin', 'like', 'title', 'uploader', 'page', 'duration', 'image_url']])
+        )
 
     async def get_video_details(self, bvids: List[str]) -> List[VideoInfo]:
         """获取列表中所有视频详细信息"""
         sem = asyncio.Semaphore(self.config.SEMAPHORE_LIMIT)
-        
         async def sem_fetch(bvid: str) -> Optional[VideoInfo]:
             async with sem:
                 if self.proxy:
-                    self.proxy.random_proxy()
+                    request_settings.set_proxy(self.proxy.proxy_server)  
                 result = await RetryHandler.retry_async(self.fetch_video_detail, bvid)
                 await asyncio.sleep(self.config.SLEEP_TIME)
                 return result
@@ -332,10 +320,9 @@ class BilibiliScraper:
 
     async def process_new_songs(self) -> List[Dict[str, Any]]:
         """抓取新曲数据"""
-        print("Starting to get all bvids")
+        print("开始获取新曲数据")
         bvids = await self.get_all_bvids()
-        print(f"Total bvids found: {len(bvids)}")
-        
+        print(f"一共有 {len(bvids)} 个 bvid")
         videos = await self.get_video_details(bvids)
         return [asdict(video) for video in videos]
     
@@ -351,13 +338,4 @@ class BilibiliScraper:
         """导出数据"""
         df = pd.DataFrame(videos)
         df = df.sort_values(by='view', ascending=False)
-        
-
-        columns = ['title', 'bvid', 'name', 'author', 'uploader', 'copyright', 
-                'synthesizer', 'vocal', 'type', 'pubdate', 'duration', 'page', 
-                'view', 'favorite', 'coin', 'like', 'image_url']
-        if self.mode in [ "new", "special"]:
-            columns.insert(9, "tags")
-            columns.insert(10, "description")
-                    
-        output_excel(df, self.filename, columns)
+        save_to_excel(df, self.filename)

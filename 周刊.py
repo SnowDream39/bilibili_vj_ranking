@@ -3,7 +3,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 from src.processing import process_records
 from utils.calculator import calculate_ranks, update_rank_and_rate, update_count
-from utils.io_utils import format_columns, save_to_excel
+from utils.io_utils import save_to_excel
 
 CONFIG = {
     "ranking_type": "weekly",
@@ -56,7 +56,6 @@ def main():
     )
     df = df.loc[df.groupby('name')['point'].idxmax()].reset_index(drop=True)
     df = calculate_ranks(df)
-    df = format_columns(df)
     df = update_count(df, f"{CONFIG['output_paths']['total']}/{CONFIG['dates']['previous']}.xlsx")
     df = update_rank_and_rate(df, f"{CONFIG['output_paths']['total']}/{CONFIG['dates']['previous']}.xlsx")
     
@@ -67,7 +66,6 @@ def main():
     
     if not new_songs_df.empty:
         new_songs_df = calculate_ranks(new_songs_df)
-        new_songs_df = format_columns(new_songs_df)
         save_to_excel(new_songs_df, f"{CONFIG['output_paths']['new_song']}/新曲{CONFIG['dates']['target']}.xlsx")
 
 if __name__ == "__main__":

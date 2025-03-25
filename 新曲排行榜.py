@@ -1,6 +1,6 @@
 import pandas as pd
 from datetime import datetime, timedelta
-from utils.io_utils import format_columns, save_to_excel
+from utils.io_utils import save_to_excel
 from utils.calculator import calculate_ranks
 
 def main():
@@ -22,7 +22,6 @@ def main():
     new_ranking_df = new_ranking_df.loc[new_ranking_df.groupby('name')['point'].idxmax()].reset_index(drop=True)
     new_ranking_df = filter_new_song(new_ranking_df, previous_ranking_df)
     new_ranking_df = calculate_ranks(new_ranking_df)
-    new_ranking_df = format_columns(new_ranking_df)
     save_to_excel(new_ranking_df, output_path)
 
 def filter_new_song(df, previous_rank_df):
@@ -30,16 +29,9 @@ def filter_new_song(df, previous_rank_df):
     df['rank'] = df.index + 1
     df = df.merge(previous_rank_df[['name', 'rank']], on='name', how='left', suffixes=('', '_previous'))
     df['rank_previous'] = df['rank_previous'].fillna(1000)
-
     new_ranking = []
     ignore_rank = 0
-    for _, row in df.iterrows():
-        if (row['rank'] - ignore_rank) < row['rank_previous']:
-            row['rank_previous'] = row['rank'] - ignore_rank
-            row['rank'] = row['rank'] - ignore_rank
-            new_ranking.append(row)
-        else: ignore_rank += 1
-
+    [(row.update({'rank_previous': row['rank']-ignore_rank, 'rank': row['rank']-ignore_rank}) or new_ranking.append(row) ) if (row['rank']-ignore_rank) < row['rank_previous'] else (ignore_rank := ignore_rank+1) for _, row in df.iterrows() ]
     return pd.DataFrame(new_ranking).sort_values(by='rank').reset_index(drop=True)
 
 if __name__ == "__main__":

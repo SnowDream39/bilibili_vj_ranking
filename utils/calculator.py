@@ -1,5 +1,6 @@
 import pandas as pd
 from math import ceil, floor
+from utils.io_utils import format_columns
 
 def calculate_scores(view: int, favorite: int, coin: int, like: int, copyright: int, ranking_type: str):
     copyright = 1 if copyright in [1, 3] else 2
@@ -40,7 +41,7 @@ def calculate_ranks(df):
     for col in ['view', 'favorite', 'coin', 'like']:
         df[f'{col}_rank'] = df[col].rank(ascending=False, method='min')
     df['rank'] = df['point'].rank(ascending=False, method='min')
-    return df
+    return format_columns(df)
 
 def update_rank_and_rate(df_today, prev_file_path):
     df_prev = pd.read_excel(prev_file_path)

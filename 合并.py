@@ -2,7 +2,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 import yaml
 web_uploader = __import__('模块-上传网站')
-from utils.io_utils import format_columns, save_to_excel
+from utils.io_utils import save_to_excel
 from utils.calculator import calculate_ranks, update_rank_and_rate, update_count
 
 def main():
@@ -23,13 +23,12 @@ def main():
     df_new_toll = pd.read_excel(f'数据/{new_time_toll}.xlsx')
     df_new_new = pd.read_excel(f'新曲数据/{new_time_new}.xlsx')
 
-    updated_data = process_new_songs(df_new_toll, df_new_new, new_time_toll)
+    updated_data = process_new_songs(df_new_toll, df_new_new)
     save_to_excel(updated_data, f'数据/{new_time_toll}.xlsx')
 
 def process_combined_data(df, today_date):
     df = merge_duplicate_names(df)
     df = calculate_ranks(df)
-    df = format_columns(df)
     df = update_count(df, f'差异/合并表格/{today_date}与{(datetime.strptime(str(today_date), "%Y%m%d") - timedelta(days=1)).strftime("%Y%m%d")}.xlsx')
     df = update_rank_and_rate(df, f'差异/合并表格/{today_date}与{(datetime.strptime(str(today_date), "%Y%m%d") - timedelta(days=1)).strftime("%Y%m%d")}.xlsx')
     return df
@@ -51,15 +50,8 @@ def merge_duplicate_names(df):
         else: merged_df = pd.concat([merged_df, group])
     return merged_df
 
-def process_new_songs(df_new_toll, df_new_new, new_time_toll):
+def process_new_songs(df_new_toll, df_new_new):
     existing_df = pd.read_excel('收录曲目.xlsx')
-    updated_df = df_new_new.merge(df_new_toll, on='bvid', suffixes=('', '_y'))
-    df_new = updated_df[[
-        'title', 'bvid', 'name', 'author', 'uploader', 
-        'copyright', 'synthesizer', 'vocal', 'type', 
-        'pubdate', 'duration', 'page', 'view', 
-        'favorite', 'coin', 'like', 'image_url'
-    ]]
     updated_df = df_new_new.merge(existing_df, on='bvid', suffixes=('', '_y'))
     df_new = updated_df[[
         'title', 'bvid', 'name_y', 'author_y', 'uploader', 
@@ -67,8 +59,7 @@ def process_new_songs(df_new_toll, df_new_new, new_time_toll):
         'pubdate', 'duration', 'page', 'view', 
         'favorite', 'coin', 'like', 'image_url'
     ]].rename(columns={'name_y': 'name', 'author_y': 'author', 'copyright_y': 'copyright', 'synthesizer_y': 'synthesizer', 'vocal_y': 'vocal', 'type_y': 'type'})
-    existing_df = pd.read_excel(f'数据/{new_time_toll}.xlsx', engine='openpyxl')
-    updated_df = pd.concat([existing_df, df_new]).drop_duplicates(subset=['bvid'], keep='last')
+    updated_df = pd.concat([df_new_toll, df_new]).drop_duplicates(subset=['bvid'], keep='last')
     return updated_df
 
 def update_existing_songs(df):
