@@ -2,7 +2,7 @@ import pandas as pd
 from utils.tagger import Tagger
 import yaml
 
-with open("ai_config.yaml", 'r', encoding='utf-8') as file:
+with open("config/ai.yaml", 'r', encoding='utf-8') as file:
     config = yaml.safe_load(file)
     tagger = Tagger(**config)
 

@@ -1,28 +1,15 @@
 import os
 import pandas as pd
+import json
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from src.processing import process_records
 from utils.calculator import calculate_ranks, update_rank_and_rate
 from utils.io_utils import save_to_excel
 
-CONFIG = {
-    "ranking_type": "monthly",
-    "columns": [
-        'title', 'bvid', 'name', 'author', 'uploader', 'copyright', 
-        'synthesizer', 'vocal', 'type', 'pubdate', 'duration', 'page', 
-        'view', 'favorite', 'coin', 'like', 'image_url'
-    ],
-    "dates": {
-        "old": '20250201',
-        "new": '20250301',
-        "target": '2025-02',
-    },
-    "output_paths": {
-        "total": "月刊/总榜",
-        "new_song": "月刊/新曲榜"
-    }
-}
+with open('config/monthly.json','r',encoding='utf-8') as file:
+    CONFIG = json.load(file)
+
 CONFIG["dates"]["previous"] = (datetime.strptime(CONFIG['dates']['target'], '%Y-%m') - relativedelta(months=1)).strftime('%Y-%m')
     
 def merge_old_data(date, columns):
