@@ -1,7 +1,9 @@
 import requests
 import json
 import pandas as pd
-
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from itertools import chain
+from utils.real_name import find_original_name
 
 class Tagger:
     def __init__(
@@ -79,35 +81,59 @@ class Tagger:
             )
         return result
     
-    def fill_info(self, songs: pd.DataFrame, info_list: list, start: int, end: int):
-        try:
-            for i,index in enumerate(range(start, end)):
-                if info_list[i]['isSong']:
-                    info = info_list[i]['info']
-                    songs.loc[index, 'name'] = info['name']
-                    songs.loc[index, 'type'] = info['type']
-                    songs.loc[index, 'author'] = info['author']
-                    songs.loc[index, 'synthesizer'] = info['synthesizer']
-                    songs.loc[index, 'vocal'] = info['vocal']
-                    if songs.loc[index, 'copyright'] == 1 and info['copyright'] == '搬运':
-                        songs.loc[index, 'copyright'] = 3
-                    elif songs.loc[index, 'copyright'] == 2 and info['copyright'] == '本家投稿':
-                        songs.loc[index, 'copyright'] = 4
-        except Exception as e:
-            print(f"打标第{start+1}到{end}个视频出错：{e}")
+    def to_real_name(self, info_list: list):
+        for info in info_list:
+            if info['isSong']:
+                info['info']['vocal'] = "、".join(map(find_original_name, info['info']['vocal'].split('、')))
+    
+    def fill_info(self, songs: pd.DataFrame, info_list: list):
+        for i in range(len(info_list)):
+            if info_list[i]['isSong']:
+                info = info_list[i]['info']
+                # songs.loc[index, 'name'] = info['name']
+                songs.loc[i, 'type'] = info['type']
+                # songs.loc[index, 'author'] = info['author']
+                songs.loc[i, 'synthesizer'] = info['synthesizer']
+                songs.loc[i, 'vocal'] = info['vocal']
+                # if songs.loc[index, 'copyright'] == 1 and info['copyright'] == '搬运':
+                #     songs.loc[index, 'copyright'] = 3
+                # elif songs.loc[index, 'copyright'] == 2 and info['copyright'] == '本家投稿':
+                #     songs.loc[index, 'copyright'] = 4
+
+    def chat_info_part(self, songs_part: pd.DataFrame) -> list:
+        prompt = self.df2prompt(songs_part)
+        result = self.chat(prompt)
+        print(songs_part.index[0])
+        return self.result2json(result)
+
+
+    def chat_info(self, songs:pd.DataFrame) -> list:
+        length = len(songs.index)
+        results = [None] * ((length + 9) // 10)
+
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            futures = {}
+            for i in range(0, length, 10):
+                part = songs.iloc[i:min(i+10, length)]
+                batch_idx = i // 10
+                future = executor.submit(self.chat_info_part, part)
+                futures[future] = batch_idx
+
+
+            for future in as_completed(futures):
+                idx = futures[future]
+                results[idx] = future.result()
+
+        return list(chain.from_iterable(results))
             
 
     def tagging(self, songs: pd.DataFrame):
         length = len(songs.index)
-        for i in range(0, length, 10):
-            start = i
-            end = min(start+10, length)
-            print(f"正在打标第{start+1}到第{end}个视频")
-            songs_part = songs.iloc[start:end]
-            prompt = self.df2prompt(songs_part)
-            result = self.chat(prompt)
-            info = self.result2json(result)
-            self.fill_info(songs, info, start, end)
+        info_list = self.chat_info(songs)
+
+        print("AI打标完成，正在填入数据...")
+        self.to_real_name(info_list)
+        self.fill_info(songs, info_list)
 
 
             
