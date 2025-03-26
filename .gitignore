@@ -1,6 +1,7 @@
 bilibili日V周刊.sln
 bilibili日V周刊.pyproj
 __pycache__/
+utils/__pycache__/
 .editorconfig
 .vs/
 *.xlsx
