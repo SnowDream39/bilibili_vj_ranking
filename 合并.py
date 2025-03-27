@@ -1,9 +1,13 @@
 import pandas as pd
 from datetime import datetime, timedelta
 import yaml
+import json
 web_uploader = __import__('模块-上传网站')
 from utils.io_utils import save_to_excel
 from utils.calculator import calculate_ranks, update_rank_and_rate, update_count
+
+with open('config/usecols.json','r',encoding='utf-8') as file:
+    CONFIG = json.load(file)
 
 def main():
     today_date = (datetime.now()-timedelta(days=1)).replace(hour=0, minute=0,second=0,microsecond=0).strftime('%Y%m%d')
@@ -18,7 +22,7 @@ def main():
     save_to_excel(updated_songs, '收录曲目.xlsx')
     
     df = process_combined_data(df, today_date)
-    save_to_excel(df, f'差异/合并表格/{new_time_toll}与{old_time_toll}.xlsx')
+    save_to_excel(df, f'差异/合并表格/{new_time_toll}与{old_time_toll}.xlsx', CONFIG["columns"])
 
     df_new_toll = pd.read_excel(f'数据/{new_time_toll}.xlsx')
     df_new_new = pd.read_excel(f'新曲数据/{new_time_new}.xlsx')

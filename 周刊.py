@@ -6,7 +6,7 @@ from src.processing import process_records
 from utils.calculator import calculate_ranks, update_rank_and_rate, update_count
 from utils.io_utils import save_to_excel
 
-with open('config/monthly.json','r',encoding='utf-8') as file:
+with open('config/weekly.json','r',encoding='utf-8') as file:
     CONFIG = json.load(file)
 
 CONFIG["dates"]["previous"] = f"{CONFIG['dates']['old'][:4]}-{CONFIG['dates']['old'][4:6]}-{CONFIG['dates']['old'][6:]}"
