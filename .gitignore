@@ -1,12 +1,12 @@
 bilibili日V周刊.sln
 bilibili日V周刊.pyproj
 __pycache__/
+utils/__pycache__/
 .editorconfig
 .vs/
 *.xlsx
 */
-!utils/calculator.py
-!utils/io_utils.py
+!utils/
 !src/
 简易算分.py
 *模块*
@@ -16,5 +16,4 @@ __pycache__/
 *调试*
 *.yaml
 *.yml
-*.xlsx
 *.zip

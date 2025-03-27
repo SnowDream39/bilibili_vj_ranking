@@ -2,17 +2,22 @@ import asyncio
 from bilibili_api import search
 from pathlib import Path
 from src.bilibili_scraper import Config, SearchOptions, BilibiliScraper
+import yaml
+
+with open('config/特殊.yaml', 'r', encoding='utf-8') as file:
+    config_file = yaml.safe_load(file)
+
 
 config = Config(
-    KEYWORDS=['夢ノ結唱', '梦的结唱', 'Syntheiszer ROSE', 'Synthesizer POPY', 'ksm', 'ykn', '香澄', '友希那'],
+    KEYWORDS= config_file.keywords,
     OUTPUT_DIR=Path('特殊/特殊原始数据'),
-    NAME="梦的结唱4"
+    NAME= config_file.name
 )
 
 search_options = SearchOptions(
     order_type = search.OrderVideo.CLICK,
     time_start= '2025-02-01',
-    time_end = '2025-03-07',
+    time_end = '2025-03-27',
 )
 
 async def main():

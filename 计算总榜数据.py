@@ -3,7 +3,7 @@ from src.processing import process_records
 from utils.calculator import calculate_ranks
 from utils.io_utils import save_to_excel
 
-song_data = '39日'
+song_data = '梦的结唱4自动标注'
 
 CONFIG = {
     "columns": [

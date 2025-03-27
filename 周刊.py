@@ -1,27 +1,14 @@
 import os
+import json
 import pandas as pd
 from datetime import datetime, timedelta
 from src.processing import process_records
 from utils.calculator import calculate_ranks, update_rank_and_rate, update_count
 from utils.io_utils import save_to_excel
 
-CONFIG = {
-    "ranking_type": "weekly",
-    "columns": [
-        'title', 'bvid', 'name', 'author', 'uploader', 'copyright', 
-        'synthesizer', 'vocal', 'type', 'pubdate', 'duration', 'page', 
-        'view', 'favorite', 'coin', 'like', 'image_url'
-    ],
-    "dates": {
-        "old": '20250315',
-        "new": '20250322',
-        "target": '2025-03-22',
-    },
-    "output_paths": {
-        "total": "周刊/总榜",
-        "new_song": "周刊/新曲榜"
-    }
-}
+with open('config/monthly.json','r',encoding='utf-8') as file:
+    CONFIG = json.load(file)
+
 CONFIG["dates"]["previous"] = f"{CONFIG['dates']['old'][:4]}-{CONFIG['dates']['old'][4:6]}-{CONFIG['dates']['old'][6:]}"
 
 def merge_old_data(date, columns):

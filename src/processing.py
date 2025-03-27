@@ -15,17 +15,17 @@ def process_records(
     通用数据处理函数
     
     参数:
-    new_data (pd.DataFrame): 新数据集
-    records (pd.DataFrame, optional): 需要处理的记录集（若为None则处理new_data所有记录）
-    old_data (pd.DataFrame, optional): 旧数据集
-    use_old_data (bool): 是否使用旧数据对比
-    use_collected (bool): 是否是部分打标的新曲
-    collected_data (pd.DataFrame, optional): 收录曲目数据
-    ranking_type (str): 排行榜类型参数
-    old_time_toll (str): 旧数据时间阈值（格式：YYYYMMDD）
+        new_data (pd.DataFrame): 新数据集
+        records (pd.DataFrame, optional): 需要处理的记录集（若为None则处理new_data所有记录）
+        old_data (pd.DataFrame, optional): 旧数据集
+        use_old_data (bool): 是否使用旧数据对比
+        use_collected (bool): 是否是部分打标的新曲
+        collected_data (pd.DataFrame, optional): 收录曲目数据
+        ranking_type (str): 排行榜类型参数
+        old_time_toll (str): 旧数据时间阈值（格式：YYYYMMDD）
     
     返回:
-    pd.DataFrame: 处理后的结果
+        pd.DataFrame: 处理后的结果
     """
     result = []
     iterator = new_data.iterrows()
