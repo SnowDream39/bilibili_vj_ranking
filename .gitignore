@@ -5,12 +5,10 @@ __pycache__/
 .vs/
 *.xlsx
 */
-!utils/
-utils/__init__.py
-utils/proxy.py
-utils/clash.py
-utils/bilibili_scraper.py
+!utils/calculator.py
+!utils/io_utils.py
 !src/
+简易算分.py
 *模块*
 *json*
 *萌百*

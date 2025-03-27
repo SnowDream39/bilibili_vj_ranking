@@ -79,5 +79,7 @@ def process_records(
             'fixC': f'{data[10]:.2f}', 'point': data[11], 
             'image_url': new['image_url']
         })
+        if use_collected:
+            result[-1].update({'tags': new['tags'], 'description': new['description']})
     
     return pd.DataFrame(result)

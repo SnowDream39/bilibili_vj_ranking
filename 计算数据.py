@@ -12,11 +12,6 @@ old_time_new = f'新曲{old_time_toll}'
 new_time_new = f'新曲{new_time_toll}'
 
 CONFIG = {
-    "columns": [
-        'title', 'bvid', 'name', 'author', 'uploader', 'copyright', 'synthesizer',
-        'vocal', 'type', 'pubdate', 'duration', 'page', 'view', 'favorite', 'coin',
-        'like', 'image_url'
-    ],
     "threshold": 1000, # 新曲日增阈值
     "output_paths": {
         "data": "差异/非新曲",
@@ -25,8 +20,8 @@ CONFIG = {
 }
 
 def main_processing(old_data_path, new_data_path, output_path, point_threshold=None, data_type=None):
-    old_data = pd.read_excel(old_data_path, usecols=CONFIG['columns'])
-    new_data = pd.read_excel(new_data_path, usecols=CONFIG['columns'])
+    old_data = pd.read_excel(old_data_path)
+    new_data = pd.read_excel(new_data_path)
 
     df = process_records(
         new_data=new_data,
