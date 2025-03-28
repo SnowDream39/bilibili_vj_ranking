@@ -2,6 +2,7 @@ import json
 import difflib
 import os
 from typing import Optional
+from utils.logger import logger
 
 with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "config", "歌手名称表.json"), 'r', encoding='utf-8') as file:
     all_names: list[str] = json.load(file)
@@ -27,4 +28,4 @@ def find_original_name(name: str) -> str:
         return name
     
 if __name__ == "__main__":
-    print(find_original_name("夢ノ結唱ROSE"))
+    logger.info(find_original_name("夢ノ結唱ROSE"))

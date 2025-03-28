@@ -4,7 +4,7 @@ import pandas as pd
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from itertools import chain
 from utils.real_name import find_original_name
-
+from utils.logger import logger
 class Tagger:
     def __init__(
             self,
@@ -55,8 +55,8 @@ class Tagger:
                     if decoded_line == "event:conversation.message.completed":
                         completed = True
         else:
-            print(f"Error: {response.status_code}")
-            print(response.json())
+            logger.error(f"错误: {response.status_code}")
+            logger.error(response.json())
 
         return result
     
@@ -104,7 +104,7 @@ class Tagger:
     def chat_info_part(self, songs_part: pd.DataFrame) -> list:
         prompt = self.df2prompt(songs_part)
         result = self.chat(prompt)
-        print(songs_part.index[0])
+        logger.info(songs_part.index[0])
         return self.result2json(result)
 
 
@@ -129,10 +129,9 @@ class Tagger:
             
 
     def tagging(self, songs: pd.DataFrame):
-        length = len(songs.index)
         info_list = self.chat_info(songs)
 
-        print("AI打标完成，正在填入数据...")
+        logger.info("AI打标完成，正在填入数据...")
         self.to_real_name(info_list)
         self.fill_info(songs, info_list)
 

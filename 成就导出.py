@@ -3,9 +3,9 @@ from typing import List, Dict, Tuple, Set
 import pandas as pd
 from collections import deque
 from datetime import datetime, timedelta
-import os
 from pathlib import Path
 from enum import Enum
+from utils.logger import logger
 
 @dataclass
 class Achievement:
@@ -119,9 +119,9 @@ class WeeklyHonor:
                         if not any(entry[0] == song_name for entry in achievements[achievement_type]):
                             achievements[achievement_type].append([song_name, file_index])
 
-                print(f"第 {file_index} 期处理完成")
+                logger.info(f"第 {file_index} 期处理完成")
             except Exception as e:
-                print(f"处理第 {file_index} 期时出错: {e}")
+                logger.error(f"处理第 {file_index} 期时出错: {e}")
 
         self.save_achievements(achievements)
 

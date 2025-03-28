@@ -6,11 +6,6 @@ from utils.io_utils import save_to_excel
 song_data = '梦的结唱4自动标注'
 
 CONFIG = {
-    "columns": [
-        'title', 'bvid', 'name', 'author', 'uploader', 'copyright', 'synthesizer',
-        'vocal', 'type', 'pubdate', 'duration', 'page', 'view', 'favorite', 'coin',
-        'like', 'image_url'
-    ],
     "paths": {
         "input_path": f"特殊/特殊原始数据/{song_data}.xlsx",
         "output_path": f"特殊/特殊排行榜/{song_data}.xlsx"
@@ -18,7 +13,7 @@ CONFIG = {
 }
 
 def main_processing(input_path, output_path):
-    df = pd.read_excel(input_path, usecols=CONFIG['columns'])
+    df = pd.read_excel(input_path)
     df = process_records(
         new_data = df,
         use_old_data = False,

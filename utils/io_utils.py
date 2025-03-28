@@ -2,6 +2,7 @@ import pandas as pd
 from pathlib import Path
 from typing import Optional, List, Union
 from openpyxl.utils import get_column_letter
+from utils.logger import logger
 
 def save_to_excel(df: pd.DataFrame, filename: Union[str, Path], usecols: Optional[List[str]] = None):
     if usecols:
@@ -16,14 +17,14 @@ def save_to_excel(df: pd.DataFrame, filename: Union[str, Path], usecols: Optiona
                 cell.number_format = '@'
                 cell.alignment = cell.alignment.copy(horizontal='left')
                 
-        print(f"{filename} 保存完成")
+        logger.info(f"{filename} 保存完成")
     except Exception as e:
-        print(f"Excel 保存失败：{e}")
+        logger.warning(f"Excel 保存失败：{e}")
 
         # 备份 CSV
         backup_csv = Path(filename).with_suffix('.csv')
         df.to_csv(backup_csv, index=False, encoding='utf-8-sig')
-        print(f"数据已备份至 {backup_csv}")
+        logger.info(f"数据已备份至 {backup_csv}")
 
 def format_columns(df):
     columns = ['viewR', 'favoriteR', 'coinR', 'likeR', 'fixA', 'fixB', 'fixC']

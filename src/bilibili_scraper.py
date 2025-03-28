@@ -9,6 +9,7 @@ from dataclasses import dataclass, asdict, field
 from typing import List, Optional, Dict, Literal, Any, Union
 from pathlib import Path
 import json
+from utils.logger import logger
 from utils.io_utils import save_to_excel
 from utils.proxy import Proxy 
 
@@ -74,7 +75,7 @@ class RetryHandler:
             try:
                 return await func(*args, **kwargs)
             except Exception as e:
-                print(f"Attempt {attempt + 1}/{max_retries} failed: {str(e)}")
+                logger.warning(f"第 {attempt + 1}/{max_retries} 次尝试失败: {str(e)}")  
                 if attempt == max_retries - 1:
                     raise
                 await asyncio.sleep(Config.SLEEP_TIME)
@@ -158,7 +159,7 @@ class BilibiliScraper:
                     video for video in video_list
                     if datetime.fromtimestamp(video['pubdate']) > self.start_time
                 ]
-                print(f"获取分区最新： {rid}，第 {page} 页")
+                logger.info(f"获取分区最新： {rid}，第 {page} 页")
                 if not recent_videos:
                     break
                 bvids.extend(video['bvid'] for video in recent_videos)
@@ -167,7 +168,7 @@ class BilibiliScraper:
             return bvids
 
         except Exception as e:
-            print('搜索分区视频时出错：', e)
+            logger.error('搜索分区视频时出错：', e)
 
     def search_by_type(self, keyword, page, search_options: SearchOptions):
         """把bilibili-api的搜索函数改一种接口"""
@@ -197,12 +198,12 @@ class BilibiliScraper:
                         pubdate = datetime.fromtimestamp(item['pubdate'])
                         if pubdate >= self.start_time:
                             bvids.append(item['bvid'])
-                            print(f"发现视频： {item['bvid']}")
+                            logger.info(f"发现视频： {item['bvid']}")
                         else:
                             return {'end': True, 'keyword': keyword, 'bvids': bvids}
                     else:
                         bvids.append(item['bvid'])
-                        print(f"发现视频： {item['bvid']}")
+                        logger.info(f"发现视频： {item['bvid']}")
                 await asyncio.sleep(self.config.SLEEP_TIME)
                 return {'end': False, 'keyword': keyword, 'bvids': bvids}
             
@@ -210,7 +211,7 @@ class BilibiliScraper:
         page = 1
         bvids = []
         while keywords:
-            print(f'正在搜索第{page}页')
+            logger.info(f'正在搜索第{page}页')
             tasks = [sem_fetch(keyword, page) for keyword in keywords]
             results = await asyncio.gather(*tasks)
             for result in results:
@@ -253,9 +254,9 @@ class BilibiliScraper:
                 tags = [tag['tag_name'] for tag in await v.get_tags()]
             
             if info['duration'] <= self.config.MIN_VIDEO_DURATION:
-                print(f"跳过短视频： {bvid}")
+                logger.info(f"跳过短视频： {bvid}")
                 return None
-            print(f"获取视频信息： {bvid}")
+            logger.info(f"获取视频信息： {bvid}")
             return VideoInfo(
                 title=self.clean_tags(info['title']),
                 bvid=bvid,
@@ -275,7 +276,7 @@ class BilibiliScraper:
                 description=info['desc'] if extra_info else None,
             )
         except Exception as e:
-            print(f"爬取 {bvid} 时出错: {str(e)}")
+            logger.error(f"爬取 {bvid} 时出错: {str(e)}")
             return None
 
     async def update_old_songs(self, videos: List[VideoInfo]) -> None:
@@ -320,15 +321,15 @@ class BilibiliScraper:
 
     async def process_new_songs(self) -> List[Dict[str, Any]]:
         """抓取新曲数据"""
-        print("开始获取新曲数据")
+        logger.info("开始获取新曲数据")
         bvids = await self.get_all_bvids()
-        print(f"一共有 {len(bvids)} 个 bvid")
+        logger.info(f"一共有 {len(bvids)} 个 bvid")
         videos = await self.get_video_details(bvids)
         return [asdict(video) for video in videos]
     
     async def process_old_songs(self) -> List[Dict[str, Any]]:
         """抓取旧曲数据"""
-        print("开始获取旧曲数据")
+        logger.info("开始获取旧曲数据")
         bvids = self.songs['bvid'].to_list()
         videos = await self.get_video_details(bvids)
         self.update_old_songs(videos)
