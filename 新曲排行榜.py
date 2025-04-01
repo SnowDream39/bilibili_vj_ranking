@@ -1,5 +1,3 @@
-import json
-from pathlib import Path
 import pandas as pd
 from datetime import datetime, timedelta
 from utils.io_utils import save_to_excel
@@ -17,7 +15,8 @@ def main():
 
     new_ranking_df = pd.read_excel(file_path)
     previous_ranking_df = pd.read_excel(previous_rank_path)
-    new_ranking_df = new_ranking_df[json.load(Path('config/usecols.json').open(encoding='utf-8'))["columns"]]
+    columns = ['title', 'bvid', 'name', 'author', 'uploader', 'copyright', 'synthesizer', 'vocal', 'type', 'pubdate', 'duration', 'page', 'view', 'favorite', 'coin', 'like', 'viewR', 'favoriteR', 'coinR', 'likeR', 'fixA', 'fixB', 'fixC', 'point', 'image_url']
+    new_ranking_df = new_ranking_df[columns]
     previous_ranking_df = previous_ranking_df[['name', 'rank']]
 
     new_ranking_df = new_ranking_df.loc[new_ranking_df.groupby('name')['point'].idxmax()].reset_index(drop=True)

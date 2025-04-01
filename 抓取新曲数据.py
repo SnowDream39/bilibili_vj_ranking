@@ -1,7 +1,6 @@
 import asyncio
 from bilibili_api import video_zone
 from pathlib import Path
-import os
 import json
 from src.bilibili_scraper import Config, SearchOptions, BilibiliScraper
 

@@ -8,6 +8,7 @@ utils/__pycache__/
 */
 !utils/
 !src/
+年刊.py
 简易算分.py
 *模块*
 *json*

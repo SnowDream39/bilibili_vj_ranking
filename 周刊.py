@@ -25,9 +25,7 @@ def filter_new_songs(df, top_20_names):
     """筛选新曲"""
     start_date = datetime.strptime(CONFIG['dates']['old'], "%Y%m%d") - timedelta(days=7)
     end_date = datetime.strptime(CONFIG['dates']['new'], "%Y%m%d")
-    
-    df['pubdate'] = pd.to_datetime(df['pubdate'])
-    mask = ((df['pubdate'] >= start_date) & (df['pubdate'] < end_date) & (~df['name'].isin(top_20_names)))
+    mask = ((pd.to_datetime(df['pubdate']) >= start_date) & (pd.to_datetime(df['pubdate']) < end_date) & (~df['name'].isin(top_20_names)))
     return df[mask].copy()
 
 def main():
