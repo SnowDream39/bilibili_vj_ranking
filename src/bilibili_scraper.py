@@ -181,48 +181,67 @@ class BilibiliScraper:
             time_end= search_options.time_end,
             page=page
         )
-
-    async def get_video_list_by_search(self, time_filtering: bool = False):
-        """使用搜索获取新曲"""
-        async def sem_fetch(keyword: str, page: int) -> Dict:
-            async with self.sem:
-                if self.proxy:
-                    request_settings.set_proxy(self.proxy.proxy_server)  
-                result = await RetryHandler.retry_async(self.search_by_type, keyword, page, self.search_options)
-                videos = result.get('result', [])
-                if not videos:
-                    return {'end': True, 'keyword': keyword, 'bvids': []}
-                bvids = []
-                for item in videos:
-                    if time_filtering:
-                        pubdate = datetime.fromtimestamp(item['pubdate'])
-                        if pubdate >= self.start_time:
-                            bvids.append(item['bvid'])
-                            logger.info(f"发现视频： {item['bvid']}")
-                        else:
-                            return {'end': True, 'keyword': keyword, 'bvids': bvids}
-                    else:
-                        bvids.append(item['bvid'])
-                        logger.info(f"发现视频： {item['bvid']}")
-                await asyncio.sleep(self.config.SLEEP_TIME)
-                return {'end': False, 'keyword': keyword, 'bvids': bvids}
-            
+    
+    async def get_video_list_by_search_for_zone(self, zone: int, time_filtering: bool = False) -> List[str]:
+        """
+        针对单个分区搜索所有关键字。
+        """
         keywords = self.config.KEYWORDS[:]
         page = 1
         bvids = []
         while keywords:
-            logger.info(f'正在搜索第{page}页')
+            logger.info(f'[分区 {zone}] 正在搜索第 {page} 页')
+            async def sem_fetch(keyword: str, page: int) -> Dict:
+                async with self.sem:
+                    if self.proxy:
+                        request_settings.set_proxy(self.proxy.proxy_server)
+                    search_opts = SearchOptions(
+                        search_type=self.search_options.search_type,
+                        order_type=self.search_options.order_type,
+                        video_zone_type=zone,
+                        time_start=self.search_options.time_start,
+                        time_end=self.search_options.time_end
+                    )
+                    result = await RetryHandler.retry_async(self.search_by_type, keyword, page, search_opts)
+                    videos = result.get('result', [])
+                    if not videos:
+                        return {'end': True, 'keyword': keyword, 'bvids': []}
+                    temp_bvids = []
+                    for item in videos:
+                        if time_filtering:
+                            pubdate = datetime.fromtimestamp(item['pubdate'])
+                            if pubdate >= self.start_time:
+                                temp_bvids.append(item['bvid'])
+                                logger.info(f"[分区 {zone}] 发现视频： {item['bvid']} (关键词 {keyword})")
+                            else:
+                                return {'end': True, 'keyword': keyword, 'bvids': temp_bvids}
+                        else:
+                            temp_bvids.append(item['bvid'])
+                            logger.info(f"[分区 {zone}] 发现视频： {item['bvid']} (关键词 {keyword})")
+                    await asyncio.sleep(self.config.SLEEP_TIME)
+                    return {'end': False, 'keyword': keyword, 'bvids': temp_bvids}
+            
             tasks = [sem_fetch(keyword, page) for keyword in keywords]
             results = await asyncio.gather(*tasks)
             for result in results:
                 bvids.extend(result['bvids'])
                 if result['end']:
-                    keywords.remove(result['keyword'])
+                    if result['keyword'] in keywords:
+                        keywords.remove(result['keyword'])
             await asyncio.sleep(self.config.SLEEP_TIME)
-
             page += 1
         return bvids
-                
+
+    async def get_video_list_by_search(self, time_filtering: bool = False) -> List[str]:
+        """
+        对所有分区分别搜索，再合并结果
+        """
+        all_bvids = set()
+        for zone in self.search_options.video_zone_type:
+            bvids = await self.get_video_list_by_search_for_zone(zone, time_filtering=time_filtering)
+            all_bvids.update(bvids)
+        return list(all_bvids)
+
     async def get_all_bvids(self) -> List[str]:
         """使用搜索和分区两种方式"""
         all_bvids = set()
