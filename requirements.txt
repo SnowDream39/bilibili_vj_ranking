@@ -1,9 +1,4 @@
 aiohttp==3.11.13
 bilibili_api_python==17.1.0
-numpy==2.2.4
 openpyxl==3.1.5
-pandas==2.2.3
-paramiko==3.5.1
-python_dateutil==2.9.0.post0
-PyYAML==6.0.2
-Requests==2.32.3
+pandas==2.2.2
