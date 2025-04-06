@@ -26,3 +26,4 @@ __pycache__/
 !schedule.yml
 *.zip
 *txt
+!requirements.txt
