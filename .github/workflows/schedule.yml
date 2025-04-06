@@ -1,0 +1,49 @@
+name: Scheduled Python Scripts
+
+on:
+  schedule:
+    # 北京时间 23:30 运行第一个脚本
+    - cron: "30 14 * * *"  # UTC 时间 15:30 对应北京时间 23:30
+    # 北京时间 00:01 运行第二个脚本
+    - cron: "01 16 * * *"  # UTC 时间 16:01 对应北京时间 00:01
+
+jobs:
+  run-script-1:
+    runs-on: ubuntu-latest
+    if: github.event.schedule == '30 15 * * *'  # 确保只在指定时间运行
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run script 1 (抓取数据.py)
+        run: python 抓取数据.py
+
+  run-script-2:
+    runs-on: ubuntu-latest
+    if: github.event.schedule == '01 16 * * *'  
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run script 2 (抓取新曲数据.py)
+        run: python 抓取新曲数据.py
