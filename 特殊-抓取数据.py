@@ -9,7 +9,7 @@ with open('config/特殊.yaml', 'r', encoding='utf-8') as file:
 
 
 config = Config(
-    KEYWORDS= config_file.keywords,
+    KEYWORDS= config_file.keywords, 
     OUTPUT_DIR=Path('特殊/特殊原始数据'),
     NAME= config_file.name
 )

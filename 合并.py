@@ -20,7 +20,7 @@ def main():
     save_to_excel(updated_songs, '收录曲目.xlsx')
     
     df = process_combined_data(df, today_date)
-    save_to_excel(df, f'差异/合并表格/{new_time_toll}与{old_time_toll}.xlsx', json.load(Path('config/usecols.json').open(encoding='utf-8'))["columns"])
+    save_to_excel(df, f'差异/合并表格/{new_time_toll}与{old_time_toll}.xlsx', json.load(Path('config/usecols.json').open(encoding='utf-8'))["columns"]["final_ranking"])
 
     df_new_toll = pd.read_excel(f'数据/{new_time_toll}.xlsx')
     df_new_new = pd.read_excel(f'新曲数据/{new_time_new}.xlsx')

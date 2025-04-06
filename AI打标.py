@@ -17,4 +17,4 @@ songs_data = pd.read_excel(f"{file_name}.xlsx", dtype={'name': str, 'type':str, 
 
 tagger.tagging(songs_data)
 
-save_to_excel(format_columns(songs_data), f"{file_name}打标结果.xlsx")
+save_to_excel(format_columns(songs_data), f"{file_name}.xlsx")

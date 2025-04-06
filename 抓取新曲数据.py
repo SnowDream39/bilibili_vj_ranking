@@ -6,7 +6,6 @@ from src.bilibili_scraper import Config, SearchOptions, BilibiliScraper
 with open('config/keywords.json', 'r', encoding='utf-8') as file:
     keywords = json.load(file)
 
-
 config = Config(
     KEYWORDS= keywords,
     OUTPUT_DIR=Path('新曲数据'),

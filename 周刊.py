@@ -30,7 +30,7 @@ def filter_new_songs(df, top_20_names):
 
 def main():
     old_data = merge_old_data(CONFIG['dates']['old'], CONFIG['columns'])
-    new_data = pd.read_excel(f"数据/{CONFIG['dates']['new']}.xlsx", usecols=CONFIG['columns'])
+    new_data = pd.read_excel(f"数据/{CONFIG['dates']['new']}.xlsx", usecols=CONFIG['columns']['stat'])
 
     df = process_records(
         new_data=new_data,

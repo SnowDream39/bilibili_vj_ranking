@@ -262,13 +262,28 @@ class BilibiliScraper:
 
     async def fetch_video_detail(self, bvid: str) -> Optional[VideoInfo]:
         """获取一个视频的详细信息"""
-        if self.mode in ["new", "special"]:
-            extra_info = True
-        else:
-            extra_info = False
+        
         try:
+            existing_data = {}
+            if self.mode == "old":
+                song_data = self.songs[self.songs['bvid'] == bvid].iloc[0]
+                existing_data = {
+                    'name': song_data['name'],
+                    'bvid': bvid,
+                    'author': song_data['author'],
+                    'synthesizer': song_data['synthesizer'],
+                    'vocal': song_data['vocal'],
+                    'copyright': song_data['copyright'],
+                    'type': song_data['type'],
+                    'pubdate': song_data['pubdate'],
+                }
             v = video.Video(bvid, credential=Credential())
             info = await v.get_info()
+            if self.mode in ["new", "special"]:
+                extra_info = True
+            else:
+                extra_info = False
+
             if extra_info:
                 tags = [tag['tag_name'] for tag in await v.get_tags()]
             
@@ -277,13 +292,18 @@ class BilibiliScraper:
                 return None
             logger.info(f"获取视频信息： {bvid}")
             return VideoInfo(
+                **existing_data if self.mode == "old" else {
+                'name': self.clean_tags(info['title']),
+                'bvid': bvid,
+                'author': info['owner']['name'],
+                'synthesizer': "",
+                'vocal': "",
+                'type': "",
+                'copyright': info['copyright'],
+                'pubdate': datetime.fromtimestamp(info['pubdate']).strftime('%Y-%m-%d %H:%M:%S'),
+                },
                 title=self.clean_tags(info['title']),
-                bvid=bvid,
-                name=self.clean_tags(info['title']),
-                author=info['owner']['name'],
                 uploader=info['owner']['name'],
-                copyright=info['copyright'],
-                pubdate=datetime.fromtimestamp(info['pubdate']).strftime('%Y-%m-%d %H:%M:%S'),
                 duration=self.convert_duration(info['duration']),
                 page=len(info['pages']),
                 view=info['stat']['view'],
@@ -298,30 +318,21 @@ class BilibiliScraper:
             logger.error(f"爬取 {bvid} 时出错: {str(e)}")
             return None
 
-    async def update_old_songs(self, videos: List[VideoInfo]) -> None:
-        """旧曲用：合并数据"""
+    async def update_recorded_songs(self, videos: List[VideoInfo]) -> None:
+        """更新收录曲目表"""
         update_data = pd.DataFrame([{
             'bvid': video.bvid,
-            'view': video.view,
-            'favorite': video.favorite,
-            'coin': video.coin,
-            'like': video.like,
             'title': video.title,
+            'view': video.view,
             'uploader': video.uploader,
-            'page': video.page,
-            'duration': video.duration,
             'image_url': video.image_url
         } for video in videos])
-
-        self.songs = (
-        self.songs.set_index('bvid')
-        .merge(update_data, on='bvid', how='left', suffixes=('', '_new'))
-        .assign(**{col: lambda df, c=col: df[f"{c}_new"].combine_first(df[c]) for col in ['view', 'favorite', 'coin', 'like', 'title', 'uploader', 'page', 'duration', 'image_url']})
-        .query('view > 0')
-        .sort_values('view', ascending=False)
-        .reset_index()
-        .drop(columns=[f"{col}_new" for col in ['view', 'favorite', 'coin', 'like', 'title', 'uploader', 'page', 'duration', 'image_url']])
-        )
+        self.songs.set_index('bvid', inplace=True)
+        update_data.set_index('bvid', inplace=True)
+        for column in ['title', 'view', 'uploader', 'image_url']:
+            self.songs.loc[update_data.index, column] = update_data[column]
+        self.songs = self.songs.reset_index().sort_values(by='view', ascending=False)
+        save_to_excel(self.songs, "收录曲目.xlsx", json.load(Path('config/usecols.json').open(encoding='utf-8'))["columns"]["record"])
 
     async def get_video_details(self, bvids: List[str]) -> List[VideoInfo]:
         """获取列表中所有视频详细信息"""
@@ -351,11 +362,11 @@ class BilibiliScraper:
         logger.info("开始获取旧曲数据")
         bvids = self.songs['bvid'].to_list()
         videos = await self.get_video_details(bvids)
-        self.update_old_songs(videos)
-        return self.songs.to_dict(orient='records')
-
-    async def save_to_excel(self, videos: List[Dict[str, Any]]) -> None:
+        await self.update_recorded_songs(videos)
+        return [asdict(video) for video in videos]
+    
+    async def save_to_excel(self, videos: List[Dict[str, Any]], usecols) -> None:
         """导出数据"""
         df = pd.DataFrame(videos)
         df = df.sort_values(by='view', ascending=False)
-        save_to_excel(df, self.filename)
+        save_to_excel(df, self.filename, usecols=usecols)

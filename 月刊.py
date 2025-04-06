@@ -31,7 +31,7 @@ def filter_new_songs(df, top_20_names):
 
 def main():
     """主处理流程"""
-    old_data = merge_old_data(CONFIG['dates']['old'], CONFIG['columns'])
+    old_data = merge_old_data(CONFIG['dates']['old'], CONFIG['columns']['stat'])
     new_data = pd.read_excel(f"数据/{CONFIG['dates']['new']}.xlsx", usecols = CONFIG['columns'])
 
     df = process_records(
