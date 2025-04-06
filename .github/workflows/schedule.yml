@@ -3,14 +3,14 @@ name: Scheduled Python Scripts
 on:
   schedule:
     # 北京时间 23:30 运行第一个脚本
-    - cron: "45 15 * * *"  # UTC 时间 15:30 对应北京时间 23:30
+    - cron: "55 14 * * *"  # UTC 时间 15:30 对应北京时间 23:30
     # 北京时间 00:01 运行第二个脚本
     - cron: "01 16 * * *"  # UTC 时间 16:01 对应北京时间 00:01
 
 jobs:
   run-script-1:
     runs-on: ubuntu-latest
-    if: github.event.schedule == '45 15 * * *'  # 确保只在指定时间运行
+    if: github.event.schedule == '55 14 * * *'  # 确保只在指定时间运行
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
