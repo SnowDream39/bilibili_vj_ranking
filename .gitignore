@@ -8,9 +8,6 @@ __pycache__/
 !config/
 !src/
 !utils/
-!.github
-!workflows
-!收录曲目.xlsx
 年刊.py
 简易算分.py
 *模块*
@@ -23,7 +20,6 @@ __pycache__/
 !weekly.json
 !monthly.json
 !keywords.json
-!schedule.yml
 *.zip
 *txt
 !requirements.txt
