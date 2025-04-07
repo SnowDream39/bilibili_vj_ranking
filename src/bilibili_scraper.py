@@ -339,11 +339,12 @@ class BilibiliScraper:
             'uploader': video.uploader,
             'image_url': video.image_url
         } for video in videos])
+        self.songs['is_failed'] = ~self.songs['bvid'].isin(update_data['bvid'])
         self.songs.set_index('bvid', inplace=True)
         update_data.set_index('bvid', inplace=True)
         for column in ['title', 'view', 'uploader', 'image_url']:
             self.songs.loc[update_data.index, column] = update_data[column]
-        self.songs = self.songs.reset_index()
+        self.songs = self.songs.reset_index().sort_values(['is_failed', 'view'], ascending=[False, False]).drop('is_failed', axis=1)
         save_to_excel(self.songs, "收录曲目.xlsx", json.load(Path('config/usecols.json').open(encoding='utf-8'))["columns"]["record"])
 
     async def get_video_details(self, bvids: List[str]) -> List[VideoInfo]:
