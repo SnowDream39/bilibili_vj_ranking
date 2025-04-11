@@ -298,10 +298,11 @@ class BilibiliScraper:
 
             if extra_info:
                 tags = [tag['tag_name'] for tag in await v.get_tags()]
-            
-            if info['duration'] <= self.config.MIN_VIDEO_DURATION:
-                logger.info(f"跳过短视频： {bvid}")
-                return None
+        
+                if info['duration'] <= self.config.MIN_VIDEO_DURATION:
+                    logger.info(f"跳过短视频： {bvid}")
+                    return None
+                
             logger.info(f"获取视频信息： {bvid}")
             return VideoInfo(
                 **existing_data if self.mode == "old" else {
