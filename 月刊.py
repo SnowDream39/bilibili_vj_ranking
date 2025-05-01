@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import pandas as pd
 import json
 from datetime import datetime
@@ -31,8 +32,8 @@ def filter_new_songs(df, top_20_names):
 
 def main():
     """主处理流程"""
-    old_data = merge_old_data(CONFIG['dates']['old'], CONFIG['columns']['stat'])
-    new_data = pd.read_excel(f"数据/{CONFIG['dates']['new']}.xlsx", usecols = CONFIG['columns'])
+    old_data = merge_old_data(CONFIG['dates']['old'], CONFIG['columns'])
+    new_data = pd.read_excel(f"数据/{CONFIG['dates']['new']}.xlsx", usecols=json.load(Path('config/usecols.json').open(encoding='utf-8'))["columns"]['stat'])
 
     df = process_records(
         new_data=new_data,

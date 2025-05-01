@@ -3,7 +3,7 @@ from src.processing import process_records
 from utils.calculator import calculate_ranks
 from utils.io_utils import save_to_excel
 
-song_data = '梦的结唱4自动标注'
+song_data = '月冠'
 
 CONFIG = {
     "paths": {
@@ -17,7 +17,7 @@ def main_processing(input_path, output_path):
     df = process_records(
         new_data = df,
         use_old_data = False,
-        use_collected = True,
+        use_collected = False,
         ranking_type='special',
         collected_data = pd.read_excel('收录曲目.xlsx')
     )

@@ -28,11 +28,11 @@ def calculate_scores(view: int, favorite: int, coin: int, like: int, copyright: 
     return viewR, favoriteR, coinR, likeR, fixA, fixB, fixC
 
 def calculate_points(diff, scores):
-    diff[2] =  1 if (diff[2] == 0 and diff[0] > 0 and diff[1] > 0 and diff[3] > 0) else diff[2]
+    coin =  1 if (diff[2] == 0 and diff[0] > 0 and diff[1] > 0 and diff[3] > 0) else diff[2]
     viewR, favoriteR, coinR, likeR, fixA = scores[:5]
     viewP = diff[0] * viewR
     favoriteP = diff[1] * favoriteR
-    coinP = diff[2] * coinR * fixA
+    coinP = coin * coinR * fixA
     likeP = diff[3] * likeR
     return viewP + favoriteP + coinP + likeP
 

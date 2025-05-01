@@ -1,14 +1,28 @@
 {
     "ranking_type": "monthly",
     "columns": [
-        "title", "bvid", "name", "author", "uploader", "copyright", 
-        "synthesizer", "vocal", "type", "pubdate", "duration", "page", 
-        "view", "favorite", "coin", "like", "image_url"
+        "title",
+        "bvid",
+        "name",
+        "author",
+        "uploader",
+        "copyright",
+        "synthesizer",
+        "vocal",
+        "type",
+        "pubdate",
+        "duration",
+        "page",
+        "view",
+        "favorite",
+        "coin",
+        "like",
+        "image_url"
     ],
     "dates": {
-        "old": "20250301",
-        "new": "20250401",
-        "target": "2025-03"
+        "old": "20250401",
+        "new": "20250501",
+        "target": "2025-04"
     },
     "output_paths": {
         "total": "月刊/总榜",
