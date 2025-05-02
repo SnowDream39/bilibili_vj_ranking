@@ -66,9 +66,11 @@ def process_new_songs(df_new_toll, df_new_new):
 
 def update_existing_songs(df):
     selected_columns = ['name', 'bvid', 'title', 'view', 'pubdate', 'author', 'uploader', 'copyright', 'synthesizer', 'vocal', 'type', 'image_url']
-    df_selected = df[selected_columns]
+    df_selected = df[selected_columns].copy()
+    df_selected['streak'] = 0
     existing_df = pd.read_excel('收录曲目.xlsx')
-    return pd.concat([existing_df, df_selected[~df_selected['bvid'].isin(existing_df['bvid'])]])
+    new_songs = df_selected[~df_selected['bvid'].isin(existing_df['bvid'])]
+    return pd.concat([existing_df, new_songs], ignore_index=True)
 
 def upload():
     '''
