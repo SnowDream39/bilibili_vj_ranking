@@ -35,6 +35,7 @@ class VideoInfo:
     image_url: str = ""
     tags: str = ""
     description: str = ""
+    streak : int = 0
     
 
 @dataclass
@@ -62,6 +63,9 @@ class Config:
     SLEEP_TIME: int = 0.8
     OUTPUT_DIR: Path = Path("新曲数据")
     NAME: Optional[str] = None
+    STREAK_THRESHOLD : int = 7
+    MIN_TOTAL_VIEW: int = 10000
+    BASE_THRESHOLD: int = 100 
 
     @staticmethod
     def load_keywords(file_path: str = "keywords.json") -> List[str]:
@@ -79,7 +83,8 @@ class RetryHandler:
             except Exception as e:
                 logger.warning(f"第 {attempt + 1}/{max_retries} 次尝试失败: {str(e)}")  
                 if attempt == max_retries - 1:
-                    raise
+                    logger.error(f"超过最大重试次数，放弃请求")
+                    return None
                 await asyncio.sleep(Config.SLEEP_TIME)
         return None
 
@@ -110,6 +115,8 @@ class BilibiliScraper:
         elif self.mode == "old":
             self.filename = self.config.OUTPUT_DIR / f"{self.today.strftime('%Y%m%d')}.xlsx"
             self.songs = pd.read_excel(input_file)
+            if 'streak' not in self.songs.columns:
+                self.songs['streak'] = 0
         elif self.mode == "special":
             self.filename = self.config.OUTPUT_DIR / f"{self.config.NAME}.xlsx"
 
@@ -118,7 +125,18 @@ class BilibiliScraper:
             self.proxy = proxy
             self.config.SLEEP_TIME = 0.5
             self.config.SEMAPHORE_LIMIT = 20
-
+            
+    def is_census_day(self) -> bool:
+            """判断是否为普查日（周六或每月1日）"""
+            return (self.today.weekday() == 5) or (self.today.day == 1)
+    
+    def calculate_dynamic_threshold(self, streak: int) -> int:
+        """计算动态阈值"""
+        if streak <= self.config.STREAK_THRESHOLD:
+            return self.config.BASE_THRESHOLD
+        gap_days = streak - self.config.STREAK_THRESHOLD
+        return self.config.BASE_THRESHOLD * (gap_days + 1)
+    
     @staticmethod
     def clean_tags(text: str) -> str:
         """清理HTML标签和特殊字符"""
@@ -329,24 +347,59 @@ class BilibiliScraper:
             )
         except Exception as e:
             logger.error(f"爬取 {bvid} 时出错: {str(e)}")
-            return None
+            raise
+    
+    def calculate_failed_mask(self, update_df: pd.DataFrame, census_mode: bool) -> pd.Series:
+        if census_mode:
+            return ~self.songs['bvid'].isin(update_df['bvid'])
+        mask = (
+            (self.songs['streak'] < self.config.STREAK_THRESHOLD) & 
+            ~self.songs['bvid'].isin(update_df['bvid'])
+        )
+        return mask
 
-    async def update_recorded_songs(self, videos: List[VideoInfo]) -> None:
+    def process_streaks(self, old_views: pd.Series, updated_ids: pd.Index, census_mode: bool):
+        for bvid in updated_ids:
+            new_view = self.songs.at[bvid, 'view']
+            old_view = old_views.get(bvid, new_view)
+            actual_incr = new_view - old_view
+            
+            current_streak = self.songs.at[bvid, 'streak']
+            threshold = self.calculate_threshold(current_streak, census_mode)
+            
+            condition = (new_view < self.config.MIN_TOTAL_VIEW) and (actual_incr < threshold)
+            self.songs.at[bvid, 'streak'] = current_streak + 1 if condition else 0
+        
+        if not census_mode:
+            unprocessed = ~self.songs.index.isin(updated_ids) & ~self.songs['is_failed']
+            self.songs.loc[unprocessed, 'streak'] += 1
+        
+        self.songs.loc[self.songs['is_failed'], 'streak'] = 0
+
+    def calculate_threshold(self, current_streak: int, census_mode: bool) -> int:
+        if not census_mode:
+            return self.config.BASE_THRESHOLD
+        gap = min(7, max(0, current_streak - self.config.STREAK_THRESHOLD))
+        return self.config.BASE_THRESHOLD * (gap + 1)
+
+    def update_recorded_songs(self, videos: List[VideoInfo], census_mode: bool):
         """更新收录曲目表"""
-        update_data = pd.DataFrame([{
+        update_df = pd.DataFrame([{
             'bvid': video.bvid,
             'title': video.title,
             'view': video.view,
             'uploader': video.uploader,
-            'image_url': video.image_url
+            'image_url': video.image_url,
         } for video in videos])
-        self.songs['is_failed'] = ~self.songs['bvid'].isin(update_data['bvid'])
-        self.songs.set_index('bvid', inplace=True)
-        update_data.set_index('bvid', inplace=True)
-        for column in ['title', 'view', 'uploader', 'image_url']:
-            self.songs.loc[update_data.index, column] = update_data[column]
+        old_views = self.songs.set_index('bvid')['view']
+        self.songs['is_failed'] = self.calculate_failed_mask(update_df, census_mode)
+        self.songs = self.songs.set_index('bvid')
+        update_df = update_df.set_index('bvid')
+        self.songs.update(update_df)
+        self.process_streaks(old_views, update_df.index, census_mode)
+        self.songs = self.songs.reset_index()
         self.songs = self.songs.reset_index().sort_values(['is_failed', 'view'], ascending=[False, False]).drop('is_failed', axis=1)
-        save_to_excel(self.songs, "收录曲目.xlsx", json.load(Path('config/usecols.json').open(encoding='utf-8'))["columns"]["record"])
+        save_to_excel(self.songs, "收录曲目.xlsx", usecols=json.load(Path('config/usecols.json').open(encoding='utf-8'))["columns"]["record"])
 
     async def get_video_details(self, bvids: List[str]) -> List[VideoInfo]:
         """获取列表中所有视频详细信息"""
@@ -359,9 +412,8 @@ class BilibiliScraper:
                 await asyncio.sleep(self.config.SLEEP_TIME)
                 return result
 
-        tasks = [sem_fetch(bvid) for bvid in bvids]
-        results = await asyncio.gather(*tasks)
-        return [r for r in results if r is not None]
+        results = await asyncio.gather(*[sem_fetch(bvid) for bvid in bvids], return_exceptions=True)
+        return [r for r in results if isinstance(r, VideoInfo)]
 
     async def process_new_songs(self) -> List[Dict[str, Any]]:
         """抓取新曲数据"""
@@ -374,10 +426,18 @@ class BilibiliScraper:
     async def process_old_songs(self) -> List[Dict[str, Any]]:
         """抓取旧曲数据"""
         logger.info("开始获取旧曲数据")
-        bvids = self.songs['bvid'].to_list()
+        census_mode = self.is_census_day()
+        if census_mode:
+            bvids = self.songs['bvid'].tolist()
+            logger.info(f"普查模式：处理全部 {len(bvids)} 个视频")
+        else:
+            mask = self.songs['streak'] < self.config.STREAK_THRESHOLD
+            bvids = self.songs.loc[mask, 'bvid'].tolist()
+            logger.info(f"常规模式：处理 {len(bvids)} 个视频")
+
         videos = await self.get_video_details(bvids)
-        await self.update_recorded_songs(videos)
-        return [asdict(video) for video in videos]
+        self.update_recorded_songs(videos, census_mode)
+        return [asdict(v) for v in videos]
     
     async def save_to_excel(self, videos: List[Dict[str, Any]], usecols: Optional[List[str]] = None) -> None:
         """导出数据"""

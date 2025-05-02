@@ -4,7 +4,7 @@ from pathlib import Path
 from src.bilibili_scraper import Config, BilibiliScraper
 
 async def main():
-    config = Config(OUTPUT_DIR=Path("数据"))
+    config = Config(OUTPUT_DIR=Path("测试内容"))
     scraper = BilibiliScraper(mode="old", config=config, input_file="收录曲目.xlsx")
     videos = await scraper.process_old_songs()
     await scraper.save_to_excel(videos, usecols=json.load(Path('config/usecols.json').open(encoding='utf-8'))["columns"]['stat'])

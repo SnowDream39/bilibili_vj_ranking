@@ -127,7 +127,8 @@
 			"synthesizer",
 			"vocal",
 			"type",
-			"image_url"
+			"image_url",
+			"streak"
 		]
 	}
 }
