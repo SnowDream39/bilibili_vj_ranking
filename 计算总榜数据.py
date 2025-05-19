@@ -3,14 +3,9 @@ from src.processing import process_records
 from utils.calculator import calculate_ranks
 from utils.io_utils import save_to_excel
 
-song_data = '梦的结唱4-填词'
+song_data = '月冠'
 
 CONFIG = {
-    "columns": [
-        'title', 'bvid', 'name', 'author', 'uploader', 'copyright', 'synthesizer',
-        'vocal', 'type', 'pubdate', 'duration', 'page', 'view', 'favorite', 'coin',
-        'like', 'image_url'
-    ],
     "paths": {
         "input_path": f"特殊/特殊原始数据/{song_data}.xlsx",
         "output_path": f"特殊/特殊排行榜/{song_data}.xlsx"
@@ -18,11 +13,11 @@ CONFIG = {
 }
 
 def main_processing(input_path, output_path):
-    df = pd.read_excel(input_path, usecols=CONFIG['columns'])
+    df = pd.read_excel(input_path)
     df = process_records(
         new_data = df,
         use_old_data = False,
-        use_collected = True,
+        use_collected = False,
         ranking_type='special',
         collected_data = None
     )

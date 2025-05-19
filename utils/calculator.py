@@ -9,7 +9,7 @@ def calculate_scores(view: int, favorite: int, coin: int, like: int, copyright: 
     
     if ranking_type in ('daily', 'weekly', 'monthly'):
         fixB = 0 if view + 20 * favorite <= 0 else ceil(min(1, 3 * max(0, (20 * coin + 10 * like)) / (view + 20 * favorite)) * 100) / 100
-    elif ranking_type == 'special':
+    elif ranking_type in ('annual', 'special'):
         fixB = 0 if view + 20 * favorite <= 0 else ceil(min(1, 3 * max(0, (20 * coin * fixA + 10 * like)) / (view + 20 * favorite)) * 100) / 100
 
     fixC = 0 if like + favorite <= 0 else ceil(min(1, (like + favorite + 20 * coin * fixA)/(2 * like + 2 * favorite)) * 100) / 100
@@ -19,7 +19,7 @@ def calculate_scores(view: int, favorite: int, coin: int, like: int, copyright: 
         favoriteR = 0 if favorite <= 0 else max(ceil(min((favorite + 2 * fixA * coin) * 10 / (favorite * 20 + view) * 40, 20) * 100) / 100, 0)
         coinR = 0 if fixA * coin * 40 + view <= 0 else max(ceil(min((fixA * coin * 40) / (fixA * coin * 40 + view) * 80, 40) * 100) / 100, 0)
         likeR = 0 if like <= 0 else max(floor(min(5, max(fixA * coin + favorite, 0) / (like * 20 + view) * 100) * 100) / 100, 0)
-    elif ranking_type in ('monthly', 'special'):
+    elif ranking_type in ('monthly', 'annual', 'special'):
         viewR = 0 if view <= 0 else max(ceil(min(max((fixA * coin + favorite), 0) * 25 / view, 1) * 100) / 100, 0)
         favoriteR = 0 if favorite <= 0 else max(ceil(min((favorite + 2 * fixA * coin) * 10 / (favorite * 15 + view) * 40, 20) * 100) / 100, 0)
         coinR = 0 if fixA * coin * 40 + view <= 0 else max(ceil(min((fixA * coin * 40) / (fixA * coin * 30 + view) * 80, 40) * 100) / 100, 0)
@@ -28,11 +28,11 @@ def calculate_scores(view: int, favorite: int, coin: int, like: int, copyright: 
     return viewR, favoriteR, coinR, likeR, fixA, fixB, fixC
 
 def calculate_points(diff, scores):
-    diff[2] =  1 if (diff[2] == 0 and diff[0] > 0 and diff[1] > 0 and diff[3] > 0) else diff[2]
+    coin =  1 if (diff[2] == 0 and diff[0] > 0 and diff[1] > 0 and diff[3] > 0) else diff[2]
     viewR, favoriteR, coinR, likeR, fixA = scores[:5]
     viewP = diff[0] * viewR
     favoriteP = diff[1] * favoriteR
-    coinP = diff[2] * coinR * fixA
+    coinP = coin * coinR * fixA
     likeP = diff[3] * likeR
     return viewP + favoriteP + coinP + likeP
 
@@ -67,7 +67,7 @@ def update_count(df_today, prev_file_path):
     return df_today
 
 def calculate_differences(new: pd.DataFrame, ranking_type: str, old = None):
-    if ranking_type in ('daily', 'weekly', 'monthly'):
+    if ranking_type in ('daily', 'weekly', 'monthly', 'annual'):
         return {col: new[col] - old.get(col, 0) for col in ['view', 'favorite', 'coin', 'like']}
     elif ranking_type == 'special':
         return {col: new[col] for col in ['view', 'favorite', 'coin', 'like']}

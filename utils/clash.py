@@ -1,9 +1,7 @@
 from bilibili_api import request_settings, video
 import requests
-import asyncio
 import random
-import time
-
+from utils.logger import logger
 from utils.proxy import Proxy
 
 PROXY_SERVER = 'http://127.0.0.1:7897'
@@ -14,7 +12,7 @@ GROUP_NAME = '肥猫云'
 async def get_video(bvid) :
     v = video.Video(bvid)
     info = await v.get_info()
-    print(info)
+    logger.info(info)
 
 class Clash(Proxy):
     proxy_server = PROXY_SERVER
@@ -34,13 +32,13 @@ class Clash(Proxy):
 
         try:
             self.switch_proxy(proxy)
-            response = requests.get('https://api.bilibili.com/x/web-interface/wbi/view',
-                          {'bvid': 'BV1MtPceEE5R'},
-                          timeout=0.3)
-            print(f'节点{proxy}有效')
+            requests.get('https://api.bilibili.com/x/web-interface/wbi/view',
+                {'bvid': 'BV1MtPceEE5R'},
+                timeout=0.3)
+            logger.info(f'节点{proxy}有效')
             return True
         except Exception as e:
-            print(f'节点{proxy}出错：', e)
+            logger.error(f'节点{proxy}出错：', e)
             return False
 
 
@@ -49,9 +47,9 @@ class Clash(Proxy):
             response = requests.get(CONTROL_SERVER + '/proxies/肥猫云')
             all_proxies = response.json()['all']
             self.proxies = [proxy for proxy in all_proxies if self.proxy_valid(proxy)]
-            print(self.proxies)
+            logger.info(self.proxies)
         except Exception as e:
-            print(e)
+            logger.error(e)
 
     def random_proxy(self):
         proxy = random.choice(self.proxies)

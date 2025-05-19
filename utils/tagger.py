@@ -7,7 +7,7 @@ from utils.real_name import find_original_name
 from dataclasses import dataclass
 from abc import ABC
 from sseclient import SSEClient
-
+from utils.logger import logger
 class ApiConfig(ABC):
     API_URL: str
     
@@ -113,15 +113,15 @@ class Tagger:
         records: list = json.loads(df.to_json(orient="records"))
         for index, record in enumerate(records):
             result += (   
-                f"# 视频{index+1}\n"
-                "## 标题\n"
-                f"{record["title"]}\n"
-                "## 上传者\n"
-                f"{record["uploader"]}\n"
-                "## 标签\n"
-                f"{record["tags"]}\n"
-                "## 简介\n"
-                f"{record["description"]}\n\n"
+                f'# 视频{index+1}\n'
+                '## 标题\n'
+                f'{record["title"]}\n'
+                '## 上传者\n'
+                f'{record["uploader"]}\n'
+                '## 标签\n'
+                f'{record["tags"]}\n'
+                '## 简介\n'
+                f'{record["description"]}\n\n'
             )
         return result
     
@@ -134,20 +134,21 @@ class Tagger:
         for i in range(len(info_list)):
             if info_list[i]['isSong']:
                 info = info_list[i]['info']
-                # songs.loc[index, 'name'] = info['name']
-                songs.loc[i, 'type'] = info['type']
-                # songs.loc[index, 'author'] = info['author']
-                songs.loc[i, 'synthesizer'] = info['synthesizer']
-                songs.loc[i, 'vocal'] = info['vocal']
-                # if songs.loc[index, 'copyright'] == 1 and info['copyright'] == '搬运':
-                #     songs.loc[index, 'copyright'] = 3
-                # elif songs.loc[index, 'copyright'] == 2 and info['copyright'] == '本家投稿':
-                #     songs.loc[index, 'copyright'] = 4
+                if songs.loc[i, ['type', 'synthesizer', 'vocal']].isna().all():
+                    # songs.loc[index, 'name'] = info['name']
+                    songs.loc[i, 'type'] = info['type']
+                    # songs.loc[index, 'author'] = info['author']
+                    songs.loc[i, 'synthesizer'] = info['synthesizer']
+                    songs.loc[i, 'vocal'] = info['vocal']
+                    # if songs.loc[index, 'copyright'] == 1 and info['copyright'] == '搬运':
+                    #     songs.loc[index, 'copyright'] = 3
+                    # elif songs.loc[index, 'copyright'] == 2 and info['copyright'] == '本家投稿':
+                    #     songs.loc[index, 'copyright'] = 4
 
     def chat_info_part(self, songs_part: pd.DataFrame) -> list:
         prompt = self.df2prompt(songs_part)
         result = self.chat(prompt)
-        print(songs_part.index[0])
+        logger.info(songs_part.index[0])
         return self.result2json(result)
 
 
@@ -172,10 +173,9 @@ class Tagger:
             
 
     def tagging(self, songs: pd.DataFrame):
-        length = len(songs.index)
         info_list = self.chat_info(songs)
 
-        print("AI打标完成，正在填入数据...")
+        logger.info("AI打标完成，正在填入数据...")
         self.to_real_name(info_list)
         self.fill_info(songs, info_list)
 

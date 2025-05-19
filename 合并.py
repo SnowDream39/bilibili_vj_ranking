@@ -1,6 +1,8 @@
+from pathlib import Path
 import pandas as pd
 from datetime import datetime, timedelta
 import yaml
+import json
 web_uploader = __import__('模块-上传网站')
 from utils.io_utils import save_to_excel
 from utils.calculator import calculate_ranks, update_rank_and_rate, update_count
@@ -18,7 +20,7 @@ def main():
     save_to_excel(updated_songs, '收录曲目.xlsx')
     
     df = process_combined_data(df, today_date)
-    save_to_excel(df, f'差异/合并表格/{new_time_toll}与{old_time_toll}.xlsx')
+    save_to_excel(df, f'差异/合并表格/{new_time_toll}与{old_time_toll}.xlsx', json.load(Path('config/usecols.json').open(encoding='utf-8'))["columns"]["final_ranking"])
 
     df_new_toll = pd.read_excel(f'数据/{new_time_toll}.xlsx')
     df_new_new = pd.read_excel(f'新曲数据/{new_time_new}.xlsx')
@@ -64,15 +66,17 @@ def process_new_songs(df_new_toll, df_new_new):
 
 def update_existing_songs(df):
     selected_columns = ['name', 'bvid', 'title', 'view', 'pubdate', 'author', 'uploader', 'copyright', 'synthesizer', 'vocal', 'type', 'image_url']
-    df_selected = df[selected_columns]
+    df_selected = df[selected_columns].copy()
+    df_selected['streak'] = 0
     existing_df = pd.read_excel('收录曲目.xlsx')
-    return pd.concat([existing_df, df_selected[~df_selected['bvid'].isin(existing_df['bvid'])]])
+    new_songs = df_selected[~df_selected['bvid'].isin(existing_df['bvid'])]
+    return pd.concat([existing_df, new_songs], ignore_index=True)
 
 def upload():
     '''
     上传文件到数据服务器
     '''
-    with open("CONFIG_STAT.yml",encoding='utf-8') as file:
+    with open("config/上传数据服务器.yaml",encoding='utf-8') as file:
             data = yaml.safe_load(file)
             HOST = data['HOST']
             PORT = data['PORT']

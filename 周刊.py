@@ -1,12 +1,13 @@
 import os
 import json
+from pathlib import Path
 import pandas as pd
 from datetime import datetime, timedelta
 from src.processing import process_records
 from utils.calculator import calculate_ranks, update_rank_and_rate, update_count
 from utils.io_utils import save_to_excel
 
-with open('config/monthly.json','r',encoding='utf-8') as file:
+with open('config/weekly.json','r',encoding='utf-8') as file:
     CONFIG = json.load(file)
 
 CONFIG["dates"]["previous"] = f"{CONFIG['dates']['old'][:4]}-{CONFIG['dates']['old'][4:6]}-{CONFIG['dates']['old'][6:]}"
@@ -25,14 +26,12 @@ def filter_new_songs(df, top_20_names):
     """筛选新曲"""
     start_date = datetime.strptime(CONFIG['dates']['old'], "%Y%m%d") - timedelta(days=7)
     end_date = datetime.strptime(CONFIG['dates']['new'], "%Y%m%d")
-    
-    df['pubdate'] = pd.to_datetime(df['pubdate'])
-    mask = ((df['pubdate'] >= start_date) & (df['pubdate'] < end_date) & (~df['name'].isin(top_20_names)))
+    mask = ((pd.to_datetime(df['pubdate']) >= start_date) & (pd.to_datetime(df['pubdate']) < end_date) & (~df['name'].isin(top_20_names)))
     return df[mask].copy()
 
 def main():
     old_data = merge_old_data(CONFIG['dates']['old'], CONFIG['columns'])
-    new_data = pd.read_excel(f"数据/{CONFIG['dates']['new']}.xlsx", usecols=CONFIG['columns'])
+    new_data = pd.read_excel(f"数据/{CONFIG['dates']['new']}.xlsx", usecols=json.load(Path('config/usecols.json').open(encoding='utf-8'))["columns"]['stat'])
 
     df = process_records(
         new_data=new_data,

@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import pandas as pd
 import json
 from datetime import datetime
@@ -26,15 +27,13 @@ def filter_new_songs(df, top_20_names):
     """筛选新曲"""
     start_date = datetime.strptime(CONFIG['dates']['old'], "%Y%m%d")
     end_date = datetime.strptime(CONFIG['dates']['new'], "%Y%m%d")
-    
-    df['pubdate'] = pd.to_datetime(df['pubdate'])
-    mask = ((df['pubdate'] >= start_date) & (df['pubdate'] < end_date) & (~df['name'].isin(top_20_names)))
+    mask = ((pd.to_datetime(df['pubdate']) >= start_date) & (pd.to_datetime(df['pubdate']) < end_date) & (~df['name'].isin(top_20_names)))
     return df[mask].copy()
 
 def main():
     """主处理流程"""
     old_data = merge_old_data(CONFIG['dates']['old'], CONFIG['columns'])
-    new_data = pd.read_excel(f"数据/{CONFIG['dates']['new']}.xlsx", usecols = CONFIG['columns'])
+    new_data = pd.read_excel(f"数据/{CONFIG['dates']['new']}.xlsx", usecols=json.load(Path('config/usecols.json').open(encoding='utf-8'))["columns"]['stat'])
 
     df = process_records(
         new_data=new_data,
