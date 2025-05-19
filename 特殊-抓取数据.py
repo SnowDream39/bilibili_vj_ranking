@@ -2,6 +2,7 @@ import asyncio
 from bilibili_api import search
 from pathlib import Path
 from src.bilibili_scraper import Config, SearchOptions, BilibiliScraper
+from utils.clash import Clash
 import yaml
 
 with open('config/特殊.yaml', 'r', encoding='utf-8') as file:
@@ -9,19 +10,19 @@ with open('config/特殊.yaml', 'r', encoding='utf-8') as file:
 
 
 config = Config(
-    KEYWORDS= config_file.keywords,
+    KEYWORDS= config_file['keywords'],
     OUTPUT_DIR=Path('特殊/特殊原始数据'),
-    NAME= config_file.name
+    NAME= config_file['name']
 )
 
 search_options = SearchOptions(
     order_type = search.OrderVideo.CLICK,
-    time_start= '2025-02-01',
-    time_end = '2025-03-27',
+    time_start= '2025-03-27',
+    time_end = '2025-04-12',
 )
 
 async def main():
-    scraper = BilibiliScraper(mode='special', config=config, search_options=search_options)
+    scraper = BilibiliScraper(mode='special', config=config, search_options=search_options, proxy=Clash())
     videos = await scraper.process_new_songs()
     await scraper.save_to_excel(videos)
     await scraper.close_session()
