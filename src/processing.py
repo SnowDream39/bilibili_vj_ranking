@@ -35,13 +35,11 @@ def process_records(
         if not bvid:
             continue
         
-        # 从new_data中获取完整记录
         new_match = new_data['bvid'] == bvid
         if not new_match.any():
             continue
         new = new_data[new_match].squeeze()
         
-        # 处理旧数据逻辑
         old = None
         if use_old_data:
             
@@ -53,7 +51,6 @@ def process_records(
                 if pubdate < threshold: continue
                 old = {'view': 0, 'favorite': 0, 'coin': 0, 'like': 0}
         
-        # 补充收录曲目数据
         if use_collected and collected_data is not None:
             coll_match = collected_data['bvid'] == bvid
             if coll_match.any():
@@ -61,10 +58,7 @@ def process_records(
                 for field in ['name', 'author', 'synthesizer', 'copyright', 'vocal', 'type']:
                     new[field] = coll_rec.get(field, new[field])
         
-        # 执行核心计算
         data = calculate(new, old, ranking_type)
-        
-        # 构建结果字典
         result.append({
             'title': new['title'], 'bvid': bvid, 'name': new['name'], 
             'author': new['author'], 'uploader': new['uploader'], 
