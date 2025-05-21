@@ -33,17 +33,17 @@ class VideoInfo:
     coin: int = 0
     like: int = 0
     image_url: str = ""
-    tags: str = ""
-    description: str = ""
+    tags: Optional[str] = None
+    description: Optional[str] = None
     streak : int = 0
     
 
 @dataclass
 class SearchOptions:
-    """B站搜索参数配置"""
+    """搜索时使用的B站搜索参数配置"""
     search_type: search.SearchObjectType = search.SearchObjectType.VIDEO
     order_type: search.OrderVideo = search.OrderVideo.PUBDATE
-    video_zone_type: Optional[int] = None
+    video_zone_type: Optional[List[int]] = None
     order_sort: Optional[int] = None
     time_start: Optional[str] = None
     time_end: Optional[str] = None
@@ -60,7 +60,7 @@ class Config:
     MAX_RETRIES: int = 5
     SEMAPHORE_LIMIT: int = 5
     MIN_VIDEO_DURATION: int = 20
-    SLEEP_TIME: int = 0.8
+    SLEEP_TIME: float = 0.8
     OUTPUT_DIR: Path = Path("新曲数据")
     NAME: Optional[str] = None
     STREAK_THRESHOLD : int = 7
@@ -96,12 +96,16 @@ class BilibiliScraper:
     proxy = None
     def __init__(self, 
                  mode: Literal["new", "old", "special"], 
-                 input_file: Union[str, Path] = None, 
+                 input_file: Union[str, Path, None] = None, 
                  days: int = 2,
                  config: Config = Config(), 
                  search_options: SearchOptions = SearchOptions(),
                  proxy: Optional[Proxy] = None,
                 ):
+        """
+        Args:
+            input_file: 输入文件路径
+        """
         self.mode = mode
         self.config = config
         self.config.OUTPUT_DIR.mkdir(exist_ok=True)
@@ -126,6 +130,7 @@ class BilibiliScraper:
             self.config.SLEEP_TIME = 0.5
             self.config.SEMAPHORE_LIMIT = 20
             
+    # ==================== 辅助函数 ====================
     def is_census_day(self) -> bool:
             """判断是否为普查日（周六或每月1日）"""
             return (self.today.weekday() == 5) or (self.today.day == 1)
@@ -160,7 +165,7 @@ class BilibiliScraper:
             self.session = None
 
     def search_by_type(self, keyword, page, search_options: SearchOptions):
-        """封装bilibili-api的搜索接口"""
+        """调用bilibili-api的搜索，并改变接口"""
         return search.search_by_type(
             keyword,
             search_type= search_options.search_type,
@@ -180,49 +185,51 @@ class BilibiliScraper:
                     return await response.json()
         return None
     
-    async def get_all_bvids(self) -> List[str]:
-        """使用搜索和分区两种方式"""
-        bvids = set(await self.get_video_list_by_search(time_filtering=self.mode == "new"))
-        if self.mode == "new":
-            bvids.update(await self.get_video_list_by_zone())
-        return list(bvids)
 
+
+    # =================== 获取视频列表 ===================
+    # 第一种方式，在分区内获取
     async def get_video_list_by_zone(self, rid: int = 30, ps: int = 50) -> List[str]:
         """获取分区最新视频列表，默认分区为30"""
-        bvids = []
+        bvids: List[str] = []
         page = 1
         try:
             while True:
                 if self.proxy:
                     request_settings.set_proxy(self.proxy.proxy_server) 
                 url = f"https://api.bilibili.com/x/web-interface/newlist?rid={rid}&ps={ps}&pn={page}"
-                 
+                
                 jsondata = await RetryHandler.retry_async(self.fetch_data, url)
-                video_list = jsondata['data']['archives']
-                recent_videos = [
-                    video for video in video_list
-                    if datetime.fromtimestamp(video['pubdate']) > self.start_time
-                ]
-                logger.info(f"获取分区最新： {rid}，第 {page} 页")
-                if not recent_videos:
-                    break
-                bvids.extend(video['bvid'] for video in recent_videos)
-                page += 1
-                await asyncio.sleep(self.config.SLEEP_TIME)
+                if (jsondata):
+                    video_list = jsondata['data']['archives']
+                    recent_videos = [
+                        video for video in video_list
+                        if datetime.fromtimestamp(video['pubdate']) > self.start_time
+                    ]
+                    logger.info(f"获取分区最新： {rid}，第 {page} 页")
+                    if not recent_videos:
+                        break
+                    bvids.extend(video['bvid'] for video in recent_videos)
+                    page += 1
+                    await asyncio.sleep(self.config.SLEEP_TIME)
+                else:
+                    raise Exception("获取数据失败")
             return bvids
 
         except Exception as e:
             logger.error('搜索分区视频时出错：', e)
+            return bvids
 
+    # 第二种方式，在搜索中获取
     async def get_video_list_by_search(self, time_filtering: bool = False) -> List[str]:
         """根据关键词获取视频列表"""
         all_bvids = set()
-        for zone in self.search_options.video_zone_type:
-            bvids = await self.get_video_list_by_search_for_zone(zone, time_filtering=time_filtering)
-            all_bvids.update(bvids)
+        bvids = await self.get_video_list_by_search_for_zone(self.search_options.video_zone_type, time_filtering=time_filtering)
+        all_bvids.update(bvids)
+
         return list(all_bvids)
     
-    async def get_video_list_by_search_for_zone(self, zone: int, time_filtering: bool = False) -> List[str]:
+    async def get_video_list_by_search_for_zone(self, zone: Optional[List[int]], time_filtering: bool = False) -> List[str]:
         """搜索分区下指定关键词的视频"""
         keywords = self.config.KEYWORDS[:]
         bvids = []
@@ -252,9 +259,12 @@ class BilibiliScraper:
                         search_opts
                     )
                     
-                    videos = result.get('result', [])
-                    if not videos:
-                        return {'end': True, 'keyword': keyword, 'bvids': []}
+                    if result:
+                        videos = result.get('result', [])
+                        if not videos:
+                            return {'end': True, 'keyword': keyword, 'bvids': []}
+                    else:
+                        raise Exception("搜索结果为空失败")
                     
                     temp_bvids = []
                     for item in videos:
@@ -315,7 +325,7 @@ class BilibiliScraper:
                 extra_info = False
 
             if extra_info:
-                tags = [tag['tag_name'] for tag in await v.get_tags()]
+                tags: List[str] = [tag['tag_name'] for tag in await v.get_tags()]
         
                 if info['duration'] <= self.config.MIN_VIDEO_DURATION:
                     logger.info(f"跳过短视频： {bvid}")
@@ -381,7 +391,14 @@ class BilibiliScraper:
             return self.config.BASE_THRESHOLD
         gap = min(7, max(0, current_streak - self.config.STREAK_THRESHOLD))
         return self.config.BASE_THRESHOLD * (gap + 1)
-
+    
+    # =================== 工作步骤函数 ===================
+    async def get_all_bvids(self) -> List[str]:
+        """使用搜索和分区两种方式"""
+        bvids = set(await self.get_video_list_by_search(time_filtering=self.mode == "new"))
+        if self.mode == "new":
+            bvids.update(await self.get_video_list_by_zone())
+        return list(bvids)
     def update_recorded_songs(self, videos: List[VideoInfo], census_mode: bool):
         """更新收录曲目表"""
         update_df = pd.DataFrame([{
@@ -415,6 +432,8 @@ class BilibiliScraper:
         results = await asyncio.gather(*[sem_fetch(bvid) for bvid in bvids], return_exceptions=True)
         return [r for r in results if isinstance(r, VideoInfo)]
 
+
+    #   =================== 完整工作流使用的函数 =====================
     async def process_new_songs(self) -> List[Dict[str, Any]]:
         """抓取新曲数据"""
         logger.info("开始获取新曲数据")
@@ -439,6 +458,7 @@ class BilibiliScraper:
         self.update_recorded_songs(videos, census_mode)
         return [asdict(v) for v in videos]
     
+    # =================== 单独使用 =====================
     async def save_to_excel(self, videos: List[Dict[str, Any]], usecols: Optional[List[str]] = None) -> None:
         """导出数据"""
         df = pd.DataFrame(videos)
