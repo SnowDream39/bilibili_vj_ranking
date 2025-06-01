@@ -26,8 +26,12 @@ class ZJUConfig(ApiConfig):
     USER_ID: str
 
 def byte_stream(response: requests.Response):
-    for chunk in response.iter_content(chunk_size=2048):
-        yield chunk
+    try:
+        for chunk in response.iter_content(chunk_size=2048):
+            yield chunk
+    except:
+        # 不要抛出异常
+        pass
 
 class Tagger:
     def __init__(
@@ -151,12 +155,12 @@ class Tagger:
         logger.info(songs_part.index[0])
         return self.result2json(result)
 
-
+    # =========================== 工作函数 ====================================
     def chat_info(self, songs:pd.DataFrame) -> list:
         length = len(songs.index)
         results = [None] * ((length + 9) // 10)
 
-        with ThreadPoolExecutor(max_workers=1) as executor:
+        with ThreadPoolExecutor(max_workers=20) as executor:
             futures = {}
             for i in range(0, length, 10):
                 part = songs.iloc[i:min(i+10, length)]
