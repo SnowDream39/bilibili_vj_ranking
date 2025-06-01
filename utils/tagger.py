@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from abc import ABC
 from sseclient import SSEClient
 from utils.logger import logger
+from utils.retry_handler import RetryHandler
 class ApiConfig(ABC):
     API_URL: str
     
@@ -150,12 +151,18 @@ class Tagger:
                     #     songs.loc[index, 'copyright'] = 4
 
     def chat_info_part(self, songs_part: pd.DataFrame) -> list:
-        prompt = self.df2prompt(songs_part)
-        result = self.chat(prompt)
-        logger.info(songs_part.index[0])
-        return self.result2json(result)
+        def action() -> list:
+            prompt = self.df2prompt(songs_part)
+            result = self.chat(prompt)
+            logger.info(songs_part.index[0])
+            result = self.result2json(result)
+            return result
 
-    # =========================== 工作函数 ====================================
+        handler = RetryHandler()
+        result = handler.retry(action)
+        return result
+
+    # =========================== 完整工作流函数 ====================================
     def chat_info(self, songs:pd.DataFrame) -> list:
         length = len(songs.index)
         results = [None] * ((length + 9) // 10)

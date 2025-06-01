@@ -12,6 +12,7 @@ import json
 from utils.logger import logger
 from utils.io_utils import save_to_excel
 from utils.proxy import Proxy 
+from utils.retry_handler import RetryHandler
 
 @dataclass
 class VideoInfo:
@@ -73,21 +74,6 @@ class Config:
             keywords = json.load(f)
         return keywords
     
-class RetryHandler:
-    """重试处理器"""
-    @staticmethod
-    async def retry_async(func, *args, max_retries=Config.MAX_RETRIES, **kwargs):
-        for attempt in range(max_retries):
-            try:
-                return await func(*args, **kwargs)
-            except Exception as e:
-                logger.warning(f"第 {attempt + 1}/{max_retries} 次尝试失败: {str(e)}")  
-                if attempt == max_retries - 1:
-                    logger.error(f"超过最大重试次数，放弃请求")
-                    return None
-                await asyncio.sleep(Config.SLEEP_TIME)
-        return None
-
 class BilibiliScraper:
     """B站视频爬虫"""
     # 根据当前时间确定文件名，23点后次日处理
@@ -112,6 +98,7 @@ class BilibiliScraper:
         self.search_options = search_options
         self.session = None
         self.sem = asyncio.Semaphore(self.config.SEMAPHORE_LIMIT)
+        self.retry_handler = RetryHandler(Config.MAX_RETRIES, Config.SLEEP_TIME)
 
         if self.mode == "new":
             self.filename = self.config.OUTPUT_DIR / f"新曲{self.today.strftime('%Y%m%d')}.xlsx"
@@ -199,7 +186,7 @@ class BilibiliScraper:
                     request_settings.set_proxy(self.proxy.proxy_server) 
                 url = f"https://api.bilibili.com/x/web-interface/newlist?rid={rid}&ps={ps}&pn={page}"
                 
-                jsondata = await RetryHandler.retry_async(self.fetch_data, url)
+                jsondata = await self.retry_handler.retry_async(self.fetch_data, url)
                 if (jsondata):
                     video_list = jsondata['data']['archives']
                     recent_videos = [
@@ -252,7 +239,7 @@ class BilibiliScraper:
                         time_start=self.search_options.time_start,
                         time_end=self.search_options.time_end
                     )
-                    result = await RetryHandler.retry_async(
+                    result = await self.retry_handler.retry_async(
                         self.search_by_type, 
                         keyword, 
                         keyword_pages[keyword], 
@@ -425,7 +412,7 @@ class BilibiliScraper:
             async with sem:
                 if self.proxy:
                     request_settings.set_proxy(self.proxy.proxy_server)  
-                result = await RetryHandler.retry_async(self.fetch_video_detail, bvid)
+                result = await self.retry_handler.retry_async(self.fetch_video_detail, bvid)
                 await asyncio.sleep(self.config.SLEEP_TIME)
                 return result
 
