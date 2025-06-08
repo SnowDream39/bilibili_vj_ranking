@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 import pandas as pd
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 from src.processing import process_records
 from utils.calculator import calculate_ranks, update_rank_and_rate
@@ -11,8 +11,18 @@ from utils.io_utils import save_to_excel
 with open('config/monthly.json','r',encoding='utf-8') as file:
     CONFIG = json.load(file)
 
-CONFIG["dates"]["previous"] = (datetime.strptime(CONFIG['dates']['target'], '%Y-%m') - relativedelta(months=1)).strftime('%Y-%m')
-    
+new_day = datetime.now().replace(day=1)
+new_month = new_day - timedelta(days=1)
+old_day = new_month.replace(day=1)
+old_month = old_day - relativedelta(months=1)
+
+CONFIG["dates"] = {
+    "new": new_day.strftime('%Y%m%d'),
+    "old": old_day.strftime('%Y%m%d'),
+    "target": new_month.strftime('%Y-%m'),
+    "previous": old_month.strftime('%Y-%m')
+} 
+
 def merge_old_data(date, columns):
     main_data = pd.read_excel(f"数据/{date}.xlsx", usecols = columns)
     new_song_file = f"新曲数据/新曲{date}.xlsx"

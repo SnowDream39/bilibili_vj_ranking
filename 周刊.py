@@ -10,7 +10,16 @@ from utils.io_utils import save_to_excel
 with open('config/weekly.json','r',encoding='utf-8') as file:
     CONFIG = json.load(file)
 
-CONFIG["dates"]["previous"] = f"{CONFIG['dates']['old'][:4]}-{CONFIG['dates']['old'][4:6]}-{CONFIG['dates']['old'][6:]}"
+today = datetime.now()
+new_day = today - timedelta(days=(today.weekday() - 5 + 7) % 7)
+old_day = new_day - timedelta(days=7)
+
+CONFIG["dates"] = {
+    "new": new_day.strftime('%Y%m%d'),
+    "old": old_day.strftime('%Y%m%d'),
+    "previous": old_day.strftime('%Y-%m-%d'),
+    "target": new_day.strftime('%Y-%m-%d')
+}
 
 def merge_old_data(date, columns):
     main_data = pd.read_excel(f"数据/{date}.xlsx", usecols=columns)
