@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from abc import ABC
 from sseclient import SSEClient
 from utils.logger import logger
+from utils.retry_handler import RetryHandler
 class ApiConfig(ABC):
     API_URL: str
     
@@ -26,8 +27,12 @@ class ZJUConfig(ApiConfig):
     USER_ID: str
 
 def byte_stream(response: requests.Response):
-    for chunk in response.iter_content(chunk_size=2048):
-        yield chunk
+    try:
+        for chunk in response.iter_content(chunk_size=2048):
+            yield chunk
+    except:
+        # 不要抛出异常
+        pass
 
 class Tagger:
     def __init__(
@@ -146,17 +151,23 @@ class Tagger:
                     #     songs.loc[index, 'copyright'] = 4
 
     def chat_info_part(self, songs_part: pd.DataFrame) -> list:
-        prompt = self.df2prompt(songs_part)
-        result = self.chat(prompt)
-        logger.info(songs_part.index[0])
-        return self.result2json(result)
+        def action() -> list:
+            prompt = self.df2prompt(songs_part)
+            result = self.chat(prompt)
+            logger.info(songs_part.index[0])
+            result = self.result2json(result)
+            return result
 
+        handler = RetryHandler()
+        result = handler.retry(action)
+        return result
 
+    # =========================== 完整工作流函数 ====================================
     def chat_info(self, songs:pd.DataFrame) -> list:
         length = len(songs.index)
         results = [None] * ((length + 9) // 10)
 
-        with ThreadPoolExecutor(max_workers=1) as executor:
+        with ThreadPoolExecutor(max_workers=20) as executor:
             futures = {}
             for i in range(0, length, 10):
                 part = songs.iloc[i:min(i+10, length)]
