@@ -48,6 +48,7 @@ class SearchOptions:
     order_sort: Optional[int] = None
     time_start: Optional[str] = None
     time_end: Optional[str] = None
+    page_size: Optional[int] = 30
 
 @dataclass
 class Config:
@@ -160,7 +161,8 @@ class BilibiliScraper:
             video_zone_type= search_options.video_zone_type,
             time_start= search_options.time_start,
             time_end= search_options.time_end,
-            page=page
+            page=page,
+            page_size= search_options.page_size
         )
     
     async def fetch_data(self, url: str) -> Optional[Dict]:
@@ -171,8 +173,6 @@ class BilibiliScraper:
                 if response.status == 200:
                     return await response.json()
         return None
-    
-
 
     # =================== 获取视频列表 ===================
     # 第一种方式，在分区内获取
@@ -201,26 +201,28 @@ class BilibiliScraper:
                     await asyncio.sleep(self.config.SLEEP_TIME)
                 else:
                     raise Exception("获取数据失败")
-            return bvids
+            return list(set(bvids))
 
         except Exception as e:
             logger.error('搜索分区视频时出错：', e)
-            return bvids
+            return list(set(bvids))
 
     # 第二种方式，在搜索中获取
     async def get_video_list_by_search(self, time_filtering: bool = False) -> List[str]:
         """根据关键词获取视频列表"""
         all_bvids = set()
-        bvids = await self.get_video_list_by_search_for_zone(self.search_options.video_zone_type, time_filtering=time_filtering)
-        all_bvids.update(bvids)
+        for zone in self.search_options.video_zone_type:
+            bvids = await self.get_video_list_by_search_for_zone(zone, time_filtering=time_filtering)
+            all_bvids.update(bvids)
+            await asyncio.sleep(self.config.SLEEP_TIME)
 
         return list(all_bvids)
     
-    async def get_video_list_by_search_for_zone(self, zone: Optional[List[int]], time_filtering: bool = False) -> List[str]:
+    async def get_video_list_by_search_for_zone(self, zone: Optional[int], time_filtering: bool = False) -> List[str]:
         """搜索分区下指定关键词的视频"""
         keywords = self.config.KEYWORDS[:]
         bvids = []
-        batch_size = 5
+        batch_size = 3
         keyword_pages = {keyword: 1 for keyword in keywords} 
         active_keywords = keywords[:] 
 
@@ -266,7 +268,7 @@ class BilibiliScraper:
                             temp_bvids.append(item['bvid'])
                             logger.info(f"[分区 {zone}] 发现视频: {item['bvid']} (关键词 {keyword} 第{keyword_pages[keyword]}页)")
                     
-                    await asyncio.sleep(self.config.SLEEP_TIME)
+                    await asyncio.sleep(self.config.SLEEP_TIME * 2)
                     return {'end': False, 'keyword': keyword, 'bvids': temp_bvids}
 
             tasks = [sem_fetch(keyword) for keyword in current_batch]
@@ -382,10 +384,11 @@ class BilibiliScraper:
     # =================== 工作步骤函数 ===================
     async def get_all_bvids(self) -> List[str]:
         """使用搜索和分区两种方式"""
-        bvids = set(await self.get_video_list_by_search(time_filtering=self.mode == "new"))
+        bvids = set(await self.get_video_list_by_search(time_filtering = self.mode == "new"))
         if self.mode == "new":
             bvids.update(await self.get_video_list_by_zone())
-        return list(bvids)
+        return list(set(bvids))
+    
     def update_recorded_songs(self, videos: List[VideoInfo], census_mode: bool):
         """更新收录曲目表"""
         update_df = pd.DataFrame([{
@@ -418,7 +421,6 @@ class BilibiliScraper:
 
         results = await asyncio.gather(*[sem_fetch(bvid) for bvid in bvids], return_exceptions=True)
         return [r for r in results if isinstance(r, VideoInfo)]
-
 
     #   =================== 完整工作流使用的函数 =====================
     async def process_new_songs(self) -> List[Dict[str, Any]]:

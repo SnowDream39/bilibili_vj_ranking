@@ -3,7 +3,7 @@ from src.processing import process_records
 from utils.calculator import calculate_ranks
 from utils.io_utils import save_to_excel
 
-song_data = '梦的结唱5'
+song_data = '20250622'
 
 CONFIG = {
     "paths": {

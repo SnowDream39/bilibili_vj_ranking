@@ -9,7 +9,6 @@ from utils.calculator import calculate_ranks, update_rank_and_rate, update_count
 
 def main():
     today_date = (datetime.now()-timedelta(days=1)).replace(hour=0, minute=0,second=0,microsecond=0).strftime('%Y%m%d')
-
     old_time_toll = datetime.strptime(str(today_date), '%Y%m%d').strftime('%Y%m%d')
     new_time_toll = (datetime.strptime(str(today_date), '%Y%m%d') + timedelta(days=1)).strftime('%Y%m%d')
     old_time_new = f'新曲{old_time_toll}'
@@ -89,7 +88,7 @@ def upload():
     sftp = ssh.open_sftp()  
     web_uploader.upload_files(sftp, local_files, REMOTE_PATH)
     web_uploader.close_connections(sftp, ssh)
-
+    input("上传完成")
 if __name__ == "__main__":
     main()
     upload()
