@@ -42,7 +42,7 @@ if __name__ == "__main__":
             df_date1 = pd.read_excel(file_date1)
             df_date2 = pd.read_excel(file_date2)
         except FileNotFoundError as e:
-            print(f"错误：找不到文件 {e.filename}，跳过此次处理。")
+            print(f"错误：找不到文件 {e.filename}")
             continue 
         
         df_merged = pd.merge(df_date1[['bvid', 'view']], 
@@ -121,7 +121,7 @@ if __name__ == "__main__":
                             })
                             
                         else:
-                            if _10w in [2,3,4,5,6,7,8,9,25, 95,75, 99]:
+                            if _10w in [2,3,4,5,6,7,8,9,25, 95, 75, 99]:
                                 _10nw.append({
                                     'name': row['name'],
                                     '10w_crossed': _10w * 10,

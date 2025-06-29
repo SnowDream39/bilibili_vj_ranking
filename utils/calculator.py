@@ -1,3 +1,4 @@
+# utils/calculator.py
 import pandas as pd
 from math import ceil, floor
 from utils.io_utils import format_columns
@@ -79,3 +80,13 @@ def calculate(new: pd.DataFrame, old: pd.DataFrame, ranking_type: str):
     
     return diff + list(scores) + [point]
 
+def merge_duplicate_names(df):
+    merged_df = pd.DataFrame()
+    grouped = df.groupby('name')
+      
+    for _, group in grouped:
+        if len(group) > 1:
+            best_record = group.loc[group['point'].idxmax()].copy() 
+            merged_df = pd.concat([merged_df, best_record.to_frame().T])
+        else: merged_df = pd.concat([merged_df, group])
+    return merged_df

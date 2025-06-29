@@ -1,3 +1,4 @@
+# utils/io_utils.py
 import pandas as pd
 from pathlib import Path
 from typing import Optional, List, Union
@@ -6,16 +7,18 @@ from utils.logger import logger
 
 def save_to_excel(df: pd.DataFrame, filename: Union[str, Path], usecols: Optional[List[str]] = None):
     if usecols:
-        df = df[usecols]
+        cols_to_save = [col for col in usecols if col in df.columns]
+        df = df[cols_to_save]
     try:
         with pd.ExcelWriter(filename, engine='openpyxl') as writer:
             df.to_excel(writer, index=False, sheet_name='Sheet1')
             worksheet = writer.sheets['Sheet1']
             
-            pubdate_col = get_column_letter(df.columns.get_loc('pubdate') + 1)
-            for cell in worksheet[pubdate_col]:
-                cell.number_format = '@'
-                cell.alignment = cell.alignment.copy(horizontal='left')
+            if 'pubdate' in df.columns:
+                pubdate_col = get_column_letter(df.columns.get_loc('pubdate') + 1)
+                for cell in worksheet[pubdate_col]:
+                    cell.number_format = '@'
+                    cell.alignment = cell.alignment.copy(horizontal='left')
                 
         logger.info(f"{filename} 保存完成")
     except Exception as e:

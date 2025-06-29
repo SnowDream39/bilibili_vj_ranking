@@ -129,6 +129,49 @@
 			"type",
 			"image_url",
 			"streak"
+		],
+		"combination_input": [
+			"name",
+			"bvid",
+			"title",
+			"view",
+			"pubdate",
+			"author",
+			"uploader",
+			"copyright",
+			"synthesizer",
+			"vocal",
+			"type",
+			"image_url"
+		],
+		"rename": [
+			"title",
+			"bvid",
+			"name_y",
+			"author_y",
+			"uploader",
+			"copyright_y",
+			"synthesizer_y",
+			"vocal_y",
+			"type_y",
+			"pubdate",
+			"duration",
+			"page",
+			"view",
+			"favorite",
+			"coin",
+			"like",
+			"image_url"
 		]
+	},
+	"maps": {
+		"rename_map": {
+			"name_y": "name",
+			"author_y": "author",
+			"copyright_y": "copyright",
+			"synthesizer_y": "synthesizer",
+			"vocal_y": "vocal",
+			"type_y": "type"
+		}
 	}
 }
