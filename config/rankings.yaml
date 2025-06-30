@@ -77,6 +77,7 @@ special:
   processing_options:
     use_old_data: false
     use_collected: false
+    collected_data: "收录曲目.xlsx"
 
   paths:
     input_path: "特殊/特殊原始数据/{song_data}.xlsx"

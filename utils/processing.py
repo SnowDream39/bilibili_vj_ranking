@@ -52,7 +52,7 @@ def process_records(
                 if pubdate < threshold: continue
                 old = {'view': 0, 'favorite': 0, 'coin': 0, 'like': 0}
         
-        if use_collected and collected_data is not None:
+        if collected_data is not None:
             coll_match = collected_data['bvid'] == bvid
             if coll_match.any():
                 coll_rec = collected_data[coll_match].squeeze()

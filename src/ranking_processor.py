@@ -29,7 +29,7 @@ class RankingProcessor:
 
         elif period == 'special':
             song_data = kwargs.get('song_data')
-            self._run_special(song_data)
+            self.run_special(song_data)
             
         else:
             raise ValueError(f"未知的任务类型: {period}")
@@ -206,9 +206,10 @@ class RankingProcessor:
         processing_opts = self.config.config.get('processing_options', {})
         df = process_records(
             new_data=df,
-            ranking_type=self.config.config.get('ranking_type', 'special'),
-            use_old_data=processing_opts.get('use_old_data', False),
-            use_collected=processing_opts.get('use_collected', False)
+            ranking_type = self.config.config.get('ranking_type', 'special'),
+            use_old_data = processing_opts.get('use_old_data'),
+            use_collected = processing_opts.get('use_collected'),
+            collected_data = pd.read_excel(processing_opts.get('collected_data'))
         )
         df = merge_duplicate_names(df)
         df = calculate_ranks(df)
