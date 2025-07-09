@@ -99,11 +99,12 @@ class RankingProcessor:
         new_song_diff_path = self.config.get_path('new_song_diff', 'input_paths', **dates)
         df_main_diff = pd.read_excel(main_diff_path)
         df_new_song_diff = pd.read_excel(new_song_diff_path)
-        combined_df = self.combine_diffs(df_main_diff, df_new_song_diff)
+        raw_combined_df = self.combine_diffs(df_main_diff, df_new_song_diff)
         collected_path = self.config.get_path('collected_songs', 'input_paths')
         existing_collected_df = pd.read_excel(collected_path)
-        updated_collected_df = self.update_collected_songs(combined_df, existing_collected_df)
-        processed_df = self.process_combined_ranking(combined_df, dates)
+        updated_collected_df = self.update_collected_songs(raw_combined_df, existing_collected_df)
+        merged_combined_df = merge_duplicate_names(raw_combined_df)
+        processed_df = self.process_combined_ranking(merged_combined_df, dates)
         combined_ranking_path = self.config.get_path('combined_ranking', 'output_paths', **dates)
         self.data_handler.save_df(processed_df, combined_ranking_path, 'final_ranking')
         main_data_path = self.config.get_path('main_data', 'input_paths', **dates)
@@ -116,7 +117,6 @@ class RankingProcessor:
         """合并非新曲和新曲的差异文件。"""
         combined_df = pd.concat([df_toll, df_new], ignore_index=True)
         combined_df = combined_df.drop_duplicates(subset=['bvid'], keep='last')
-        combined_df = merge_duplicate_names(combined_df)
         return combined_df
 
     def update_collected_songs(self, df: pd.DataFrame, existing_df: pd.DataFrame):
