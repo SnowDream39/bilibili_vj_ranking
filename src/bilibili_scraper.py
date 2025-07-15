@@ -345,8 +345,7 @@ class BilibiliScraper:
                 tags='、'.join(tags) if extra_info else None,
                 description=info['desc'] if extra_info else None,
             )
-        except Exception as e:
-            logger.error(f"爬取 {bvid} 时出错: {str(e)}")
+        except Exception:
             raise
     
     def calculate_failed_mask(self, update_df: pd.DataFrame, census_mode: bool) -> pd.Series:
