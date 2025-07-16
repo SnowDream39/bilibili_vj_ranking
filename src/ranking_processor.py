@@ -8,11 +8,64 @@ from utils.calculator import calculate_ranks, merge_duplicate_names, update_rank
 from utils.processing import process_records
 
 class RankingProcessor:
+    """
+    排行榜处理器类
+    负责不同类型排行榜的生成、更新和数据处理
+
+    主要功能:
+    1. 周/月刊制作
+    2. 日刊制作
+    3. 特刊制作
+
+    工作流程:
+    1. 数据获取
+    2. 数据处理
+    3. 结果输出
+    """
     def __init__(self, period: str):
+        """
+        初始化排行榜处理器
+        
+        参数:
+            period: 榜单周期类型
+                - weekly: 周刊
+                - monthly: 月刊
+                - annual: 年刊
+                - daily: 日刊旧曲
+                - daily_combination: 日刊新旧曲合并
+                - daily_new_song: 日刊新曲
+                - special: 特刊
+        """
         self.config = ConfigHandler(period)
         self.data_handler = DataHandler(self.config)
 
     async def run(self, **kwargs):
+        """
+        主运行函数,根据不同的榜单类型执行相应的处理流程
+        
+        参数:
+            **kwargs: 可变关键字参数
+                - dates: 期刊榜单的日期信息
+                    * old_date: 上期数据日期
+                    * new_date: 本期数据日期
+                    * target_date: 标记命名
+                - song_data: 特刊的数据文件名
+        
+        支持的处理类型:
+        1. 期刊处理 ['weekly', 'monthly', 'annual']
+           - 加载新旧数据
+           - 计算排名变化
+           - 生成总榜和新曲榜
+        
+        2. 日刊处理
+           - daily: 计算每日旧曲数据差异
+           - daily_combination: 合并每日数据
+           - daily_new_song: 处理每日新曲
+        
+        3. 特刊处理
+           - 自定义数据处理流程
+           - 灵活的配置选项
+        """
         period = self.config.period
         if period in ['weekly', 'monthly', 'annual']:
             dates = kwargs.get('dates')
@@ -37,7 +90,32 @@ class RankingProcessor:
 
     def run_periodic_ranking(self, dates: dict):
         """
-        执行期刊生成流程。
+        执行期刊(周刊/月刊/年刊)生成流程
+        
+        工作流程:
+        1. 数据加载
+           - 读取上期合并数据
+           - 读取本期榜单数据
+        
+        2. 数据处理
+           - 计算播放等数据变化
+           - 合并同名数据
+           - 计算排名
+        
+        3. 更新处理
+           - 根据配置更新连续在榜次数
+           - 更新排名变化和增长率
+           
+        4. 新曲榜生成
+           - 根据配置决定是否生成新曲榜
+           - 筛选符合条件的新曲
+        
+        参数:
+            dates: 日期信息字典
+                - old_date: 统计期始端数据日期
+                - new_date: 统计期末端数据日期
+                - previous_date: 上期标记命名
+                - target_date: 本期标记命名
         """
         old_data = self.data_handler.load_merged_data(date=dates['old_date'])
         new_data = self.data_handler.load_toll_data(date=dates['new_date'])
@@ -66,6 +144,29 @@ class RankingProcessor:
             self._generate_new_ranking(toll_ranking, dates)
 
     def _generate_new_ranking(self, toll_ranking: pd.DataFrame, dates: dict):
+        """
+        从总榜中筛选生成新曲榜
+        
+        筛选规则:
+        1. 周刊
+           - 发布时间在指定范围内
+           - 之前未上榜(count=0)的歌曲
+           
+        2. 月刊
+           - 发布时间在指定范围内
+           - 之前未进入前20名的歌曲
+        
+        数据处理:
+        1. 时间范围确定
+        2. 数据筛选
+        
+        参数:
+            toll_ranking: 总榜数据
+            dates: 日期信息字典
+                - old_date: 上期数据日期
+                - new_date: 本期数据日期
+                - target_date: 输出文件日期
+        """
         on_board_names = set()
         period = self.config.period
         start_date = datetime.strptime(dates['old_date'], "%Y%m%d")
@@ -92,7 +193,32 @@ class RankingProcessor:
     
     def run_combination(self):
         """
-        执行每日数据合并、更新。
+        执行每日数据合并与更新流程
+        
+        工作流程:
+        1. 数据读取
+           - 读取日刊旧曲差异数据
+           - 读取日刊新曲差异数据
+           - 读取已收录曲目数据
+           
+        2. 数据合并
+           - 合并旧曲和新曲数据
+           - 更新收录曲目列表
+           - 处理重复曲目数据
+           
+        3. 榜单处理
+           - 计算新的排名
+           - 更新连续在榜次数
+           - 更新排名变化和增长率
+           
+        4. 数据更新
+           - 将新曲数据合并到旧曲数据文件
+           - 保存更新后的文件
+           
+        数据流向:
+        旧曲差异 --→ 合并差异 --→ 处理后数据 --→ 更新主数据
+        新曲差异 ↗       ↓          ↓
+                   收录曲目列表    合并榜单
         """
         dates = self.config.get_daily_new_song_dates()
         main_diff_path = self.config.get_path('main_diff', 'input_paths', **dates)
@@ -114,7 +240,20 @@ class RankingProcessor:
         self.update_data(dates, df_main, df_new_song, updated_collected_df)
     
     def combine_diffs(self, df_toll: pd.DataFrame, df_new: pd.DataFrame) -> pd.DataFrame:
-        """合并非新曲和新曲的差异文件。"""
+        """
+        合并旧曲和新曲的差异数据
+        
+        处理流程:
+        1. 合并两个数据框
+        2. 根据bvid去重，按新曲数据基准
+        
+        参数:
+            df_toll: 旧曲差异数据
+            df_new: 新曲差异数据
+            
+        返回:
+            pd.DataFrame: 合并后的差异数据
+        """
         combined_df = pd.concat([df_toll, df_new], ignore_index=True)
         combined_df = combined_df.drop_duplicates(subset=['bvid'], keep='last')
         return combined_df
@@ -200,6 +339,19 @@ class RankingProcessor:
         return df
     
     def run_special(self, song_data: str):
+        """
+        处理特刊数据
+           
+        参数:
+            song_data: 数据文件标识符
+            
+        配置选项:
+        - ranking_type: 榜单类型
+        - processing_options:
+          * use_old_data: 是否使用历史数据
+          * use_collected: 是否使用收录列表
+          * collected_data: 收录列表路径
+        """
         input_path = self.config.get_path('input_path', 'paths', song_data=song_data)
         output_path = self.config.get_path('output_path', 'paths', song_data=song_data)
         df = pd.read_excel(input_path)
@@ -217,6 +369,35 @@ class RankingProcessor:
         self.data_handler.save_df(df, output_path)
 
     def _filter_new_song(self, df, previous_rank_df):
+        """
+        过滤新曲榜数据,只保留排名上升或新上榜的歌曲
+        
+        处理流程:
+        1. 数据排序
+           - 按播放降序排序
+           - 生成初始排名
+           
+        2. 排名对比
+           - 与前一天排名合并
+           - 对缺失排名使用1000填充
+           
+        3. 条件筛选
+           - 计算实际排名变化
+           - 只保留排名上升的歌曲
+           - 动态调整最终排名
+           
+        参数:
+            df: 当前数据
+            previous_rank_df: 上期排名数据
+            
+        返回:
+            pd.DataFrame: 过滤后的新曲榜数据
+            
+        排名规则:
+        - 保留排名上升的歌曲
+        - 动态调整排名序号
+        - 移除排名未上升的歌曲
+        """
         df = df.sort_values(by='point', ascending=False).reset_index(drop=True)
         df['rank'] = df.index + 1
         df = df.merge(previous_rank_df[['name', 'rank']], on='name', how='left', suffixes=('', '_previous'))
@@ -227,6 +408,33 @@ class RankingProcessor:
         return pd.DataFrame(new_ranking).sort_values(by='rank').reset_index(drop=True)
     
     def run_daily_new_song(self):
+        """
+        处理每日新曲榜数据
+        
+        工作流程:
+        1. 数据准备
+           - 读取差异数据文件
+           - 读取上期榜单数据
+           
+        2. 数据处理
+           - 合并同名数据
+           - 过滤新上榜歌曲
+           - 计算新的排名
+           
+        3. 结果输出
+           - 保存新曲榜数据
+           
+        排名规则:
+        - 按point值降序排序
+        - 比较前一天排名
+        - 新上榜或排名上升的歌曲入选
+        - 重新计算最终排名
+        
+        文件依赖:
+        - 差异数据: 当日新增数据
+        - 上期榜单: 用于比较排名变化
+        - 输出文件: 新的榜单数据
+        """
         dates = self.config.get_daily_new_song_dates()
         diff_file_path = self.config.get_path('diff_file', 'input_paths', **dates)
         previous_rank_path = self.config.get_path('previous_ranking', 'input_paths', **dates)
@@ -239,37 +447,3 @@ class RankingProcessor:
         new_ranking_df = calculate_ranks(new_ranking_df) 
         self.data_handler.save_df(new_ranking_df, output_path, 'new_ranking')
     
-class DailyNewSongProcessor:
-    """
-    日刊新曲榜。
-    """
-    def __init__(self):
-        self.config = ConfigHandler('daily_new_song')
-        self.data_handler = DataHandler(self.config)
-
-    def _filter_new_song(self, df, previous_rank_df):
-        df = df.sort_values(by='point', ascending=False).reset_index(drop=True)
-        df['rank'] = df.index + 1
-        df = df.merge(previous_rank_df[['name', 'rank']], on='name', how='left', suffixes=('', '_previous'))
-        df['rank_previous'] = df['rank_previous'].fillna(1000)
-        new_ranking = []
-        ignore_rank = 0
-        [(row.update({'rank_previous': row['rank']-ignore_rank, 'rank': row['rank']-ignore_rank}) or new_ranking.append(row) ) if (row['rank']-ignore_rank) < row['rank_previous'] else (ignore_rank := ignore_rank+1) for _, row in df.iterrows() ]
-        return pd.DataFrame(new_ranking).sort_values(by='rank').reset_index(drop=True)
-
-    def run(self):
-        dates = self.config.get_daily_new_song_dates()
-
-        diff_file_path = self.config.get_path('diff_file', 'input_paths', **dates)
-        previous_rank_path = self.config.get_path('previous_ranking', 'input_paths', **dates)
-        output_path = self.config.get_path('ranking', 'output_paths', **dates)
-        
-        new_ranking_df = pd.read_excel(diff_file_path)
-        previous_ranking_df = pd.read_excel(previous_rank_path)
-
-        previous_ranking_df = previous_ranking_df[['name', 'rank']]
-        new_ranking_df = new_ranking_df.loc[new_ranking_df.groupby('name')['point'].idxmax()].reset_index(drop=True)
-        new_ranking_df = self._filter_new_song(new_ranking_df, previous_ranking_df)
-        new_ranking_df = calculate_ranks(new_ranking_df) 
-        self.data_handler.save_df(new_ranking_df, output_path, 'new_ranking')
-
