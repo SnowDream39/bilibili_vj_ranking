@@ -8,8 +8,11 @@ from utils.logger import logger
 def save_to_excel(df: pd.DataFrame, filename: Union[str, Path], usecols: Optional[List[str]] = None):
     if usecols:
         cols_to_save = [col for col in usecols if col in df.columns]
-        df = df[cols_to_save]
+        df = df[cols_to_save].copy() 
     try:
+        if 'aid' in df.columns:
+            df['aid'] = df['aid'].apply(lambda x: "{:.0f}".format(float(x)) if pd.notna(x) and str(x).strip() != '' else '')
+
         with pd.ExcelWriter(filename, engine='openpyxl') as writer:
             df.to_excel(writer, index=False, sheet_name='Sheet1')
             worksheet = writer.sheets['Sheet1']
@@ -19,7 +22,13 @@ def save_to_excel(df: pd.DataFrame, filename: Union[str, Path], usecols: Optiona
                 for cell in worksheet[pubdate_col]:
                     cell.number_format = '@'
                     cell.alignment = cell.alignment.copy(horizontal='left')
-                
+            
+            if 'aid' in df.columns:
+                aid_col_letter = get_column_letter(df.columns.get_loc('aid') + 1)
+                for cell in worksheet[aid_col_letter]:
+                    cell.number_format = '@'
+                    cell.alignment = cell.alignment.copy(horizontal='left')
+                    
         logger.info(f"{filename} 保存完成")
     except Exception as e:
         logger.warning(f"Excel 保存失败：{e}")

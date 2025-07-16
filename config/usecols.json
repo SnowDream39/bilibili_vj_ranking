@@ -3,6 +3,7 @@
 		"final_ranking": [
 			"title",
 			"bvid",
+			"aid",
 			"name",
 			"author",
 			"uploader",
@@ -39,6 +40,7 @@
 		"ranking": [
 			"title",
 			"bvid",
+			"aid",
 			"name",
 			"author",
 			"uploader",
@@ -66,6 +68,7 @@
 		"new_ranking": [
 			"title",
 			"bvid",
+			"aid",
 			"name",
 			"author",
 			"uploader",
@@ -99,6 +102,7 @@
 		"stat": [
 			"title",
 			"bvid",
+			"aid",
 			"name",
 			"author",
 			"uploader",
@@ -118,6 +122,7 @@
 		"record": [
 			"title",
 			"bvid",
+			"aid",
 			"name",
 			"view",
 			"pubdate",
@@ -133,6 +138,7 @@
 		"combination_input": [
 			"name",
 			"bvid",
+			"aid",
 			"title",
 			"view",
 			"pubdate",
@@ -147,6 +153,7 @@
 		"rename": [
 			"title",
 			"bvid",
+			"aid_y",
 			"name_y",
 			"author_y",
 			"uploader",
@@ -166,6 +173,7 @@
 	},
 	"maps": {
 		"rename_map": {
+			"aid_y": "aid",
 			"name_y": "name",
 			"author_y": "author",
 			"copyright_y": "copyright",

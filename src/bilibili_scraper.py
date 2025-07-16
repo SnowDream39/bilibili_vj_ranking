@@ -20,6 +20,7 @@ class VideoInfo:
     """视频信息数据类"""
     title: str
     bvid: str
+    aid: str
     name: str
     author: str 
     uploader: str = ""
@@ -38,7 +39,13 @@ class VideoInfo:
     tags: Optional[str] = None
     description: Optional[str] = None
     streak : int = 0
-    
+
+@dataclass    
+class VideoInvalidException(Exception):
+    """自定义异常，用于表示视频已失效或无法访问。"""
+    def __init__(self, message):
+        super().__init__(message)
+        self.message = message
 
 @dataclass
 class SearchOptions:
@@ -110,6 +117,12 @@ class BilibiliScraper:
             self.songs = pd.read_excel(input_file)
             if 'streak' not in self.songs.columns:
                 self.songs['streak'] = 0
+            
+            if 'aid' not in self.songs.columns:
+                self.songs['aid'] = '' 
+            else:
+                self.songs['aid'] = self.songs['aid'].astype(str).str.replace(r'\.0$', '', regex=True)
+        
         elif self.mode == "special":
             self.filename = self.config.OUTPUT_DIR / f"{self.config.NAME}.xlsx"
 
@@ -298,14 +311,15 @@ class BilibiliScraper:
             if self.mode == "old":
                 song_data = self.songs[self.songs['bvid'] == bvid].iloc[0]
                 existing_data = {
-                    'name': song_data['name'],
-                    'bvid': bvid,
-                    'author': song_data['author'],
-                    'synthesizer': song_data['synthesizer'],
-                    'vocal': song_data['vocal'],
-                    'copyright': song_data['copyright'],
-                    'type': song_data['type'],
-                    'pubdate': song_data['pubdate'],
+                    'name':         song_data['name'],
+                    'bvid':         bvid,
+                    'aid' :         song_data['aid'],
+                    'author':       song_data['author'],
+                    'synthesizer':  song_data['synthesizer'],
+                    'vocal':        song_data['vocal'],
+                    'copyright':    song_data['copyright'],
+                    'type':         song_data['type'],
+                    'pubdate':      song_data['pubdate'],
                 }
             v = video.Video(bvid, credential=Credential())
             info = await v.get_info()
@@ -326,6 +340,7 @@ class BilibiliScraper:
                 **existing_data if self.mode == "old" else {
                 'name': self.clean_tags(info['title']),
                 'bvid': bvid,
+                'aid' : str(info['aid']),
                 'author': info['owner']['name'],
                 'synthesizer': "",
                 'vocal': "",
@@ -348,6 +363,42 @@ class BilibiliScraper:
         except Exception:
             raise
     
+    async def _get_batch_details_by_aid(self, aids: List[int]) -> Dict[int, Dict]:
+        """
+        使用 medialist 接口，通过 aid 批量获取数据。
+        :param aids: 需要查询的 aid 列表。
+        :return: 一个字典，键是 aid，值是包含统计信息的字典。
+        """
+        BATCH_SIZE = 50
+        all_stats = {}
+        session = await self.get_session()
+
+        for i in range(0, len(aids), BATCH_SIZE):
+            batch_aids = aids[i:i + BATCH_SIZE]
+            resources_str = ",".join([f"{aid}:2" for aid in batch_aids])
+            url = f"https://api.bilibili.com/medialist/gateway/base/resource/infos?resources={resources_str}"
+            
+            logger.info(f"正在通过 medialist 接口处理批次 {i//BATCH_SIZE + 1}，包含 {len(batch_aids)} 个视频...")
+
+            try:
+                async with session.get(url, headers={'User-Agent': random.choice(self.config.HEADERS)}, timeout=15) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        if data.get('code') == 0 and data.get('data'):
+                            for item in data['data']:
+                                all_stats[item['id']] = item
+                        else:
+                            logger.warning(f"API 返回错误或无数据，批次：{batch_aids}, 响应: {data.get('message', 'N/A')}")
+                    else:
+                        logger.error(f"请求批次失败，HTTP状态码: {response.status}, 批次: {batch_aids}")
+                
+                await asyncio.sleep(self.config.SLEEP_TIME)
+
+            except Exception as e:
+                logger.error(f"处理批次时发生异常: {e}, 批次: {batch_aids}")
+
+        return all_stats
+
     def calculate_failed_mask(self, update_df: pd.DataFrame, census_mode: bool) -> pd.Series:
         if census_mode:
             return ~self.songs['bvid'].isin(update_df['bvid'])
@@ -393,9 +444,11 @@ class BilibiliScraper:
         """更新收录曲目表"""
         update_df = pd.DataFrame([{
             'bvid': video.bvid,
+            'aid': video.aid,
             'title': video.title,
             'view': video.view,
             'uploader': video.uploader,
+            'copyright': video.copyright,
             'image_url': video.image_url,
         } for video in videos])
         old_views = self.songs.set_index('bvid')['view']
@@ -432,22 +485,63 @@ class BilibiliScraper:
         return [asdict(video) for video in videos]
     
     async def process_old_songs(self) -> List[Dict[str, Any]]:
-        """抓取旧曲数据"""
+        """
+        抓取旧曲数据。
+        """
         logger.info("开始获取旧曲数据")
         census_mode = self.is_census_day()
+
         if census_mode:
-            bvids = self.songs['bvid'].tolist()
-            logger.info(f"普查模式：处理全部 {len(bvids)} 个视频")
+            songs_to_process_df = self.songs
+            logger.info(f"普查模式：准备处理全部 {len(songs_to_process_df)} 个视频")
         else:
             mask = self.songs['streak'] < self.config.STREAK_THRESHOLD
-            bvids = self.songs.loc[mask, 'bvid'].tolist()
-            logger.info(f"常规模式：处理 {len(bvids)} 个视频")
+            songs_to_process_df = self.songs.loc[mask]
+            logger.info(f"常规模式：准备处理 {len(songs_to_process_df)} 个视频")
 
-        videos = await self.get_video_details(bvids)
+        if songs_to_process_df.empty:
+            logger.info("没有需要处理的旧曲，任务结束。")
+            return []
+        
+        aids_to_fetch = [int(aid) for aid in songs_to_process_df['aid'] if aid and aid.isdigit()]
+        batch_results = await self._get_batch_details_by_aid(aids_to_fetch)
+
+        videos = []
+        for aid, stats in batch_results.items():
+            try:
+                song_data = songs_to_process_df[songs_to_process_df['aid'] == str(aid)].iloc[0]
+                if stats.get('title') == "已失效视频":
+                    raise VideoInvalidException(f"视频已失效")
+                
+                video_info = VideoInfo(
+                    aid=aid,
+                    bvid=song_data['bvid'],
+                    name=song_data['name'],
+                    author=song_data['author'],
+                    synthesizer=song_data['synthesizer'],
+                    vocal=song_data['vocal'],
+                    copyright=song_data['copyright'] if song_data['copyright'] in [3, 4] else stats.get('copyright', 1),
+                    type=song_data['type'],
+                    pubdate=datetime.fromtimestamp(stats.get('ctime', 0)).strftime('%Y-%m-%d %H:%M:%S'),
+                    title=self.clean_tags(stats.get('title', song_data['name'])),
+                    uploader=stats.get('upper', {}).get('name', {}),
+                    duration=self.convert_duration(stats.get('duration', 0)),
+                    page=stats.get('page', 1),
+                    view=stats.get('cnt_info', {}).get('play', 0),
+                    favorite=stats.get('cnt_info', {}).get('collect', 0),
+                    coin=stats.get('cnt_info', {}).get('coin', 0),
+                    like=stats.get('cnt_info', {}).get('thumb_up', 0),
+                    image_url=stats.get('cover', ''),
+                    tags=None,
+                    description=None
+                )
+                videos.append(video_info)
+            except Exception as e:
+                logger.error(f"处理 aid {aid} 的批量结果时出错: {e}")
+
         self.update_recorded_songs(videos, census_mode)
         return [asdict(v) for v in videos]
     
-    # =================== 单独使用 =====================
     async def save_to_excel(self, videos: List[Dict[str, Any]], usecols: Optional[List[str]] = None) -> None:
         """导出数据"""
         df = pd.DataFrame(videos)

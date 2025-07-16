@@ -37,7 +37,7 @@ class RankingProcessor:
 
     def run_periodic_ranking(self, dates: dict):
         """
-        执行报告生成流程。
+        执行期刊生成流程。
         """
         old_data = self.data_handler.load_merged_data(date=dates['old_date'])
         new_data = self.data_handler.load_toll_data(date=dates['new_date'])
