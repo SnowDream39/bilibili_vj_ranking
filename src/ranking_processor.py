@@ -68,8 +68,7 @@ class RankingProcessor:
         """
         period = self.config.period
         if period in ['weekly', 'monthly', 'annual']:
-            dates = kwargs.get('dates')
-            self.run_periodic_ranking(dates)
+            self.run_periodic_ranking(kwargs.get('dates'))
         
         elif period == 'daily':
             await self.run_daily_diff_async()
@@ -81,9 +80,11 @@ class RankingProcessor:
             self.run_daily_new_song()
 
         elif period == 'special':
-            song_data = kwargs.get('song_data')
-            self.run_special(song_data)
-            
+            self.run_special(kwargs.get('song_data'))
+    
+        elif period == 'history':
+            self.run_history(kwargs.get('dates'))
+        
         else:
             raise ValueError(f"未知的任务类型: {period}")
             
@@ -190,6 +191,14 @@ class RankingProcessor:
             new_ranking = calculate_ranks(new_ranking)
             new_ranking_path = self.config.get_path('new_ranking', target_date=dates['target_date'])
             self.data_handler.save_df(new_ranking, new_ranking_path, 'final_ranking')
+    
+    def run_history(self, dates: dict):
+        """处理历史回顾数据"""
+        input_path = self.config.get_path('input_path', **dates)
+        df = pd.read_excel(input_path)
+        df = df[df['rank'] <= 5][self.data_handler.usecols['history']].copy()
+        output_path = self.config.get_path('output_path', **dates)
+        self.data_handler.save_df(df, output_path)
     
     def run_combination(self):
         """

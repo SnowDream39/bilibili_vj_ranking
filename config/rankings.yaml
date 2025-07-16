@@ -82,3 +82,8 @@ special:
   paths:
     input_path: "特殊/特殊原始数据/{song_data}.xlsx"
     output_path: "特殊/特殊排行榜/{song_data}.xlsx"
+
+# 历史回顾
+history:
+  input_path: "周刊/总榜/{old_date}.xlsx"
+  output_path: "历史/历史{target_date}.xlsx"

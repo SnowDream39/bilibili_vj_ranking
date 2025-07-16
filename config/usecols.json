@@ -169,6 +169,18 @@
 			"coin",
 			"like",
 			"image_url"
+		],
+		"history": [
+			"title",
+			"bvid",
+			"name",
+			"author",
+			"view",
+			"favorite",
+			"coin",
+			"like",
+			"point",
+			"rank"
 		]
 	},
 	"maps": {

@@ -29,7 +29,7 @@ class ConfigHandler:
         self.config = all_configs[period]
         self.data_sources = all_configs.get('data_sources', {})
 
-    def get_path(self, key: str, path_type: str = 'output_paths', **kwargs) -> Path:
+    def get_path(self, key: str, path_type: str = None, **kwargs) -> Path:
         """
         生成完整的文件路径
         
@@ -46,7 +46,10 @@ class ConfigHandler:
         Returns:
             Path: 生成的完整路径
         """
-        template = self.config[path_type][key]
+        if path_type is None:
+            template = self.config[key]
+        else:
+            template = self.config[path_type][key]
         path = Path(template.format(**kwargs))
         path.parent.mkdir(parents=True, exist_ok=True)
         return path
@@ -94,6 +97,25 @@ class ConfigHandler:
             "previous_date": old_day.strftime('%Y-%m-%d')
         }
 
+    @staticmethod
+    def get_history_dates() -> dict:
+        """
+        获取历史回顾的相关日期
+        
+        Returns:
+            dict: 包含当前和52周前日期的字典
+                - old_date: 52周前的日期(YYYYMMDD)
+                - target_date: 当前周六日期(YYYY-MM-DD)
+        """
+        today = datetime.now()
+        now_day = today - timedelta(days=(today.weekday() - 5 + 7) % 7)
+        history_day = now_day - timedelta(weeks=52)
+        
+        return {
+            'old_date': history_day.strftime('%Y-%m-%d'),
+            'target_date': now_day.strftime('%Y-%m-%d')
+        }
+    
     @staticmethod
     def get_monthly_dates():
         """
@@ -177,3 +199,5 @@ class ConfigHandler:
             "now_date": now_day.strftime('%Y%m%d'),
             "old_date": old_day.strftime('%Y%m%d')
         }
+    
+   

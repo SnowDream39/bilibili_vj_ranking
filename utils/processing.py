@@ -78,7 +78,7 @@ def process_records(
         # 计算各项数据
         data = calculate(new, old, ranking_type)
         result.append({
-            'title': new['title'], 'bvid': bvid, 'name': new['name'], 
+            'title': new['title'], 'bvid': bvid, 'aid': new['aid'], 'name': new['name'], 
             'author': new['author'], 'uploader': new['uploader'], 
             'copyright': new['copyright'], 'synthesizer': new['synthesizer'], 
             'vocal': new['vocal'], 'type': new['type'], 'pubdate': new['pubdate'], 
