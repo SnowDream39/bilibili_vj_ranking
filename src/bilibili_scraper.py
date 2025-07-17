@@ -3,7 +3,7 @@
 import asyncio
 import aiohttp
 import pandas as pd
-from bilibili_api import request_settings, search, video, Credential
+from bilibili_api import request_settings, search
 from datetime import datetime, timedelta
 import re
 import random
@@ -40,8 +40,6 @@ class VideoInfo:
     coin: int = 0           # 硬币
     like: int = 0           # 点赞
     image_url: str = ""     # 封面URL
-    tags: Optional[str] = None # 视频标签
-    description: Optional[str] = None # 视频简介
     streak : int = 0        # 人工变量：连续未达标次数
 
 @dataclass    
@@ -398,16 +396,16 @@ class BilibiliScraper:
         1. 按页遍历分区视频
         2. 过滤出指定时间范围内的视频
         3. 处理重试和异常
-        4. 去重返回bvid列表
+        4. 去重返回aid列表
         
         Args:
             rid: 分区ID(默认30=VOCALOID)
             ps: 每页视频数
             
         Returns:
-            List[str]: 去重后的bvid列表
+            List[str]: 去重后的aid列表
         """
-        bvids: List[str] = []
+        aids: List[str] = []
         page = 1
         try:
             while True:
@@ -427,16 +425,16 @@ class BilibiliScraper:
                     logger.info(f"获取分区最新： {rid}，第 {page} 页")
                     if not recent_videos:
                         break
-                    bvids.extend(video['bvid'] for video in recent_videos)
+                    aids.extend(str(video['aid']) for video in recent_videos)
                     page += 1
                     await asyncio.sleep(self.config.SLEEP_TIME)
                 else:
                     raise Exception("获取数据失败")
-            return list(set(bvids))
+            return list(set(aids))
 
         except Exception as e:
             logger.error('搜索分区视频时出错：', e)
-            return list(set(bvids))
+            return list(set(aids))
 
     async def get_video_list_by_search(self, time_filtering: bool = False) -> List[str]:
         """
@@ -453,13 +451,13 @@ class BilibiliScraper:
         Returns:
             List[str]: 所有找到的视频bvid列表
         """
-        all_bvids = set()
+        all_aids = set()
         for zone in self.search_options.video_zone_type:
-            bvids = await self.get_video_list_by_search_for_zone(zone, time_filtering=time_filtering)
-            all_bvids.update(bvids)
+            aids = await self.get_video_list_by_search_for_zone(zone, time_filtering=time_filtering)
+            all_aids.update(aids)
             await asyncio.sleep(self.config.SLEEP_TIME)
 
-        return list(all_bvids)
+        return list(all_aids)
     
     async def get_video_list_by_search_for_zone(self, zone: Optional[int], time_filtering: bool = False) -> List[str]:
         """
@@ -476,10 +474,10 @@ class BilibiliScraper:
             time_filtering: 是否按时间过滤结果
             
         返回:
-            List[str]: 该分区内找到的所有bvid
+            List[str]: 该分区内找到的所有aids
         """
         keywords = self.config.KEYWORDS[:]
-        bvids = []
+        aids = []
         batch_size = 3
         keyword_pages = {keyword: 1 for keyword in keywords} 
         active_keywords = keywords[:] # 激发关键词列表
@@ -514,26 +512,26 @@ class BilibiliScraper:
                     if result:
                         videos = result.get('result', [])
                         if not videos:
-                            return {'end': True, 'keyword': keyword, 'bvids': []}
+                            return {'end': True, 'keyword': keyword, 'aids': []}
                     else:
                         raise Exception("搜索结果为空失败")
                     
                     # 处理搜索结果
-                    temp_bvids = []
+                    temp_aids = []
                     for item in videos:
                         if time_filtering:
                             pubdate = datetime.fromtimestamp(item['pubdate'])
                             if pubdate >= self.start_time:
-                                temp_bvids.append(item['bvid'])
-                                logger.info(f"[分区 {zone}] 发现视频: {item['bvid']} (关键词 {keyword} 第{keyword_pages[keyword]}页)")
+                                temp_aids.append(str(item['aid']))
+                                logger.info(f"[分区 {zone}] 发现视频: {item['aid']} (关键词 {keyword} 第{keyword_pages[keyword]}页)")
                             else:
-                                return {'end': True, 'keyword': keyword, 'bvids': temp_bvids}
+                                return {'end': True, 'keyword': keyword, 'aids': temp_aids}
                         else:
-                            temp_bvids.append(item['bvid'])
-                            logger.info(f"[分区 {zone}] 发现视频: {item['bvid']} (关键词 {keyword} 第{keyword_pages[keyword]}页)")
+                            temp_aids.append(str(item['aid']))
+                            logger.info(f"[分区 {zone}] 发现视频: {item['aid']} (关键词 {keyword} 第{keyword_pages[keyword]}页)")
                     
                     await asyncio.sleep(self.config.SLEEP_TIME * 2)
-                    return {'end': False, 'keyword': keyword, 'bvids': temp_bvids}
+                    return {'end': False, 'keyword': keyword, 'aids': temp_aids}
 
             # 并发执行当前批次的搜索
             tasks = [sem_fetch(keyword) for keyword in current_batch]
@@ -542,7 +540,7 @@ class BilibiliScraper:
             # 处理搜索结果
             for result in results:
                 keyword = result['keyword']
-                bvids.extend(result['bvids'])
+                aids.extend(result['aids'])
                 if result['end']:
                     # 该关键词搜索完成，从激发列表中移除
                     if keyword in active_keywords:
@@ -557,69 +555,9 @@ class BilibiliScraper:
 
             await asyncio.sleep(self.config.SLEEP_TIME)
 
-        return list(set(bvids))
-
-    # 3.3 视频信息获取
-    async def fetch_video_detail(self, bvid: str) -> Optional[VideoInfo]:
-        """获取单个视频的详细信息"""
-        try:
-            existing_data = {}
-            if self.mode == "old":
-                song_data = self.songs[self.songs['bvid'] == bvid].iloc[0]
-                existing_data = {
-                    'name':         song_data['name'],
-                    'bvid':         bvid,
-                    'aid' :         song_data['aid'],
-                    'author':       song_data['author'],
-                    'synthesizer':  song_data['synthesizer'],
-                    'vocal':        song_data['vocal'],
-                    'copyright':    song_data['copyright'],
-                    'type':         song_data['type'],
-                    'pubdate':      song_data['pubdate'],
-                }
-            v = video.Video(bvid, credential=Credential())
-            info = await v.get_info()
-            if self.mode in ["new", "special"]:
-                extra_info = True
-            else:
-                extra_info = False
-
-            if extra_info:
-                tags: List[str] = [tag['tag_name'] for tag in await v.get_tags()]
-        
-                if info['duration'] <= self.config.MIN_VIDEO_DURATION:
-                    logger.info(f"跳过短视频： {bvid}")
-                    return None
-                
-            logger.info(f"获取视频信息： {bvid}")
-            return VideoInfo(
-                **existing_data if self.mode == "old" else {
-                'name': self.clean_tags(info['title']),
-                'bvid': bvid,
-                'aid' : str(info['aid']),
-                'author': info['owner']['name'],
-                'synthesizer': "",
-                'vocal': "",
-                'type': "",
-                'copyright': info['copyright'],
-                'pubdate': datetime.fromtimestamp(info['pubdate']).strftime('%Y-%m-%d %H:%M:%S'),
-                },
-                title=self.clean_tags(info['title']),
-                uploader=info['owner']['name'],
-                duration=self.convert_duration(info['duration']),
-                page=len(info['pages']),
-                view=info['stat']['view'],
-                favorite=info['stat']['favorite'],
-                coin=info['stat']['coin'],
-                like=info['stat']['like'],
-                image_url=info['pic'],
-                tags='、'.join(tags) if extra_info else None,
-                description=info['desc'] if extra_info else None,
-            )
-        except Exception:
-            raise
+        return list(set(aids))
     
-    async def _get_batch_details_by_aid(self, aids: List[int]) -> Dict[int, Dict]:
+    async def get_batch_details_by_aid(self, aids: List[int], need_extra: bool = False) -> Dict[int, Dict]:
         """
         使用B站medialist接口批量获取视频信息
         
@@ -653,6 +591,10 @@ class BilibiliScraper:
                         data = await response.json()
                         if data.get('code') == 0 and data.get('data'):
                             for item in data['data']:
+                                # 过滤短视频
+                                if need_extra and item.get('duration', 0) <= self.config.MIN_VIDEO_DURATION:
+                                    logger.debug(f"跳过短视频: {item['id']}")
+                                    continue
                                 all_stats[item['id']] = item
                         else:
                             logger.warning(f"API 返回错误或无数据，批次：{batch_aids}, 响应: {data.get('message', 'N/A')}")
@@ -669,9 +611,9 @@ class BilibiliScraper:
     # =================== 4. 核心业务 ===================
     
     # 4.1 视频列表获取
-    async def get_all_bvids(self) -> List[str]:
+    async def get_all_aids(self) -> List[str]:
         """
-        综合搜索和分区两种方式获取目标视频的bvid列表
+        综合搜索和分区两种方式获取目标视频的aid列表
         
         工作流程:
         1. 使用搜索API获取视频
@@ -684,39 +626,77 @@ class BilibiliScraper:
            - 去重处理
         
         返回:
-            List[str]: 去重后的bvid列表
+            List[str]: 去重后的aid列表
         """
-        bvids = set(await self.get_video_list_by_search(time_filtering = self.mode == "new"))
+        aids = set(await self.get_video_list_by_search(time_filtering = self.mode == "new"))
         if self.mode == "new":
-            bvids.update(await self.get_video_list_by_zone())
-        return list(set(bvids))
+            aids.update(await self.get_video_list_by_zone())
+        return list(set(aids))
     
-    async def get_video_details(self, bvids: List[str]) -> List[VideoInfo]:
+    async def get_video_details(self, aids: List[str]) -> List[VideoInfo]:
         """
-        并发获取多个视频的详细信息
+        获取视频详细信息
         
-        实现细节:
-        1. 自动重试失败的请求
-        2. 异步并发处理多个视频
-        3. 过滤掉请求失败的结果
-        
-        参数:
-            bvids (List[str]): 需要获取详情的视频bvid列表
-            
-        返回:
+        Args:
+            aids: 需要获取详情的视频aid列表
+                
+        Returns:
             List[VideoInfo]: 成功获取的视频信息列表
         """
-        sem = asyncio.Semaphore(self.config.SEMAPHORE_LIMIT)
-        async def sem_fetch(bvid: str) -> Optional[VideoInfo]:
-            async with sem:
-                if self.proxy:
-                    request_settings.set_proxy(self.proxy.proxy_server)  
-                result = await self.retry_handler.retry_async(self.fetch_video_detail, bvid)
-                await asyncio.sleep(self.config.SLEEP_TIME)
-                return result
-
-        results = await asyncio.gather(*[sem_fetch(bvid) for bvid in bvids], return_exceptions=True)
-        return [r for r in results if isinstance(r, VideoInfo)]
+        # 转换aid为整数
+        aids = [int(aid) for aid in aids if aid and aid.isdigit()]
+        if not aids:
+            return []
+            
+        need_extra = self.mode in ["new", "special"]
+        stats = await self.get_batch_details_by_aid(aids, need_extra=need_extra)
+        
+        videos = []
+        for aid, info in stats.items():
+            try:
+                # 如果是已收录视频,获取原有数据
+                existing_data = {}
+                if self.mode == "old":
+                    song_data = self.songs[self.songs['aid'] == str(aid)].iloc[0]
+                    existing_data = {
+                        'bvid': song_data['bvid'],   
+                        'aid': str(aid),
+                        'name': song_data['name'],
+                        'copyright': song_data['copyright'] if song_data['copyright'] not in [1, 2] else info.get('copyright', 1),
+                        'author': song_data['author'],
+                        'synthesizer': song_data['synthesizer'],
+                        'vocal': song_data['vocal'],
+                        'type': song_data['type']
+                    }
+                
+                video_info = VideoInfo(
+                    **existing_data if self.mode == "old" else {
+                        'bvid': info.get('bvid', ''),
+                        'aid': str(aid),
+                        'name': self.clean_tags(info.get('title', '')),
+                        'copyright': info.get('copyright', 1),
+                        'author': info.get('upper', {}).get('name', ''),
+                        'synthesizer': "",
+                        'vocal': "",
+                        'type': "",
+                    },
+                    pubdate=datetime.fromtimestamp(info.get('ctime', 0)).strftime('%Y-%m-%d %H:%M:%S'),
+                    title=self.clean_tags(info.get('title', '')),
+                    uploader=info.get('upper', {}).get('name', ''),
+                    duration=self.convert_duration(info.get('duration', 0)),
+                    page=info.get('page', 1),
+                    view=info.get('cnt_info', {}).get('play', 0),
+                    favorite=info.get('cnt_info', {}).get('collect', 0),
+                    coin=info.get('cnt_info', {}).get('coin', 0),
+                    like=info.get('cnt_info', {}).get('thumb_up', 0),
+                    image_url=info.get('cover', '')
+                )
+                videos.append(video_info)
+                
+            except Exception as e:
+                logger.error(f"处理视频 {aid} 信息时出错: {e}")
+                
+        return videos
 
     # 4.2 数据更新
     def update_recorded_songs(self, videos: List[VideoInfo], census_mode: bool):
@@ -790,9 +770,9 @@ class BilibiliScraper:
             List[Dict[str, Any]]: 新发布视频的详细信息列表
         """
         logger.info("开始获取新曲数据")
-        bvids = await self.get_all_bvids()
-        logger.info(f"一共有 {len(bvids)} 个 bvid")
-        videos = await self.get_video_details(bvids)
+        aids = await self.get_all_aids()
+        logger.info(f"一共有 {len(aids)} 个 aid")
+        videos = await self.get_video_details(aids)
         return [asdict(video) for video in videos]
     
     async def process_old_songs(self) -> List[Dict[str, Any]]:
@@ -834,41 +814,8 @@ class BilibiliScraper:
             logger.info("没有需要处理的旧曲，任务结束。")
             return []
         
-        aids_to_fetch = [int(aid) for aid in songs_to_process_df['aid'] if aid and aid.isdigit()]
-        batch_results = await self._get_batch_details_by_aid(aids_to_fetch)
-
-        videos = []
-        for aid, stats in batch_results.items():
-            try:
-                song_data = songs_to_process_df[songs_to_process_df['aid'] == str(aid)].iloc[0]
-                if stats.get('title') == "已失效视频":
-                    raise VideoInvalidException(f"视频已失效")
-                
-                video_info = VideoInfo(
-                    aid=aid,
-                    bvid=song_data['bvid'],
-                    name=song_data['name'],
-                    author=song_data['author'],
-                    synthesizer=song_data['synthesizer'],
-                    vocal=song_data['vocal'],
-                    copyright=song_data['copyright'] if song_data['copyright'] in [3, 4] else stats.get('copyright', 1),
-                    type=song_data['type'],
-                    pubdate=datetime.fromtimestamp(stats.get('ctime', 0)).strftime('%Y-%m-%d %H:%M:%S'),
-                    title=self.clean_tags(stats.get('title', song_data['name'])),
-                    uploader=stats.get('upper', {}).get('name', {}),
-                    duration=self.convert_duration(stats.get('duration', 0)),
-                    page=stats.get('page', 1),
-                    view=stats.get('cnt_info', {}).get('play', 0),
-                    favorite=stats.get('cnt_info', {}).get('collect', 0),
-                    coin=stats.get('cnt_info', {}).get('coin', 0),
-                    like=stats.get('cnt_info', {}).get('thumb_up', 0),
-                    image_url=stats.get('cover', ''),
-                    tags=None,
-                    description=None
-                )
-                videos.append(video_info)
-            except Exception as e:
-                logger.error(f"处理 aid {aid} 的批量结果时出错: {e}")
-
+        # 获取视频信息
+        videos = await self.get_video_details(songs_to_process_df['aid'].tolist())
+        # 更新收录曲目表
         self.update_recorded_songs(videos, census_mode)
         return [asdict(v) for v in videos]
