@@ -16,25 +16,25 @@ def calculate_scores(view: int, favorite: int, coin: int, like: int, copyright: 
         coin: 硬币
         like: 点赞
         copyright: 版权类型(1,3为自制,2为转载)
-        ranking_type: 榜单类型(daily/weekly/monthly/annual/special)
+        ranking_type: 榜单类型（'daily', 'weekly', 'monthly', 'annual', 'special'）。
     
     Returns:
         tuple: (播放分,收藏分,硬币分,点赞分,修正系数A,修正系数B,修正系数C)
     """
     # 版权判定: 自制=1, 转载=2
     copyright = 1 if copyright in [1, 3] else 2
-    # 特殊情况处理: 如果有其他互动但没有投币,设为1
+    # 特殊情况处理: 如果有其他互动但没有投币,虚设为1参与计算
     coin = 1 if (coin == 0 and view > 0 and favorite > 0 and like > 0) else coin  
-    # 计算修正系数A(针对搬运硬币补偿)
+    # 计算修正系数A(搬运稿硬币得分补偿)
     fixA = 0 if coin <= 0 else (1 if copyright == 1 else ceil(max(1, (view + 20 * favorite + 40 * coin + 10 * like) / (200 * coin)) * 100) / 100)  
     
-    # 计算修正系数B(云视听小电视抑制系数)
+    # 计算修正系数B(云视听小电视等高播放收藏、低硬币点赞抑制系数)
     if ranking_type in ('daily', 'weekly', 'monthly'):
         fixB = 0 if view + 20 * favorite <= 0 else ceil(min(1, 3 * max(0, (20 * coin + 10 * like)) / (view + 20 * favorite)) * 100) / 100
     elif ranking_type in ('annual', 'special'):
         fixB = 0 if view + 20 * favorite <= 0 else ceil(min(1, 3 * max(0, (20 * coin * fixA + 10 * like)) / (view + 20 * favorite)) * 100) / 100
 
-    # 计算修正系数C(梗曲抑制系数)
+    # 计算修正系数C(梗曲等高点赞、低收藏抑制系数)
     fixC = 0 if like + favorite <= 0 else ceil(min(1, (like + favorite + 20 * coin * fixA)/(2 * like + 2 * favorite)) * 100) / 100
 
     # 日刊/周刊评分计算
@@ -54,14 +54,14 @@ def calculate_scores(view: int, favorite: int, coin: int, like: int, copyright: 
 
 def calculate_points(diff, scores):
     """
-    计算总分
+    根据数据增量和评分系数计算总分。
     
     Args:
-        diff: 各项数据的增量
-        scores: calculate_scores返回的评分
-    
+        diff (list): 包含播放、收藏、硬币、点赞增量的列表。
+        scores (tuple): 由 `calculate_scores` 返回的评分系数元组。
+
     Returns:
-        float: 计算得到的总分
+        float: 计算得到的总分。
     """
     # 处理特殊情况: 如果没有投币但有其他互动, 则将硬币虚设为1
     coin =  1 if (diff[2] == 0 and diff[0] > 0 and diff[1] > 0 and diff[3] > 0) else diff[2]
@@ -75,23 +75,32 @@ def calculate_points(diff, scores):
     return viewP + favoriteP + coinP + likeP
 
 def calculate_ranks(df):
+    """计算DataFrame中各项指标的排名。
+    
+    Args:
+        df (pd.DataFrame): 待计算排名的DataFrame，
+
+    Returns:
+        pd.DataFrame: 增加了排名列（'rank', 'view_rank',等）并格式化后的DataFrame。
     """
-    计算视频排名
-    为播放、收藏、硬币、点赞和总分分别计算排名
-    """
+    # 按总分（point）降序排序
     df = df.sort_values('point', ascending=False)
+    # 分别计算单项排名
     for col in ['view', 'favorite', 'coin', 'like']:
         df[f'{col}_rank'] = df[col].rank(ascending=False, method='min')
+    # 计算总排名
     df['rank'] = df['point'].rank(ascending=False, method='min')
     return format_columns(df)
 
 def update_rank_and_rate(df_today, prev_file_path):
-    """
-    更新排名和增长率
-    
+    """与上期数据比较，更新排名变化和得分增长率。
+
     Args:
-        df_today: 当前数据
-        prev_file_path: 前一期数据文件路径
+        df_today (pd.DataFrame): 当前周期的榜单数据。
+        prev_file_path (str): 上一期榜单数据的文件路径。
+
+    Returns:
+        pd.DataFrame: 增加了'rank_before', 'point_before', 'rate'列的DataFrame。
     """
     df_prev = pd.read_excel(prev_file_path)
     prev_dict = df_prev.set_index('name')[['rank', 'point']].to_dict(orient='index')
@@ -100,8 +109,7 @@ def update_rank_and_rate(df_today, prev_file_path):
     df_today['rank_before'] = df_today['name'].map(lambda x: prev_dict.get(x, {}).get('rank', '-'))
     df_today['point_before'] = df_today['name'].map(lambda x: prev_dict.get(x, {}).get('point', '-'))
 
-    # 计算增长率 
-    # rate = (当前分数 - 上期分数) / 上期分数
+    # 计算增长率 = (当前分数 - 上期分数) / 上期分数
     df_today['rate'] = df_today.apply(
         lambda row: (
             'NEW' if row['point_before'] == '-' else
@@ -113,24 +121,30 @@ def update_rank_and_rate(df_today, prev_file_path):
     return df_today
 
 def update_count(df_today, prev_file_path):
-    """更新视频上榜次数"""
+    """更新视频的在榜次数。
+    Args:
+        df_today (pd.DataFrame): 当前周期的榜单数据。
+        prev_file_path (str): 上一期榜单数据的文件路径。
+
+    Returns:
+        pd.DataFrame: 增加了'count'列或更新了该列的DataFrame。
+    """
     df_prev = pd.read_excel(prev_file_path)
+    # 读取上期榜单的在榜次数
     prev_count_dict = df_prev.set_index('name')['count'].to_dict()
-    # 如果当前排名≤20则上榜次数+1
+    # 如果当前排名≤20则在榜次数+1
     df_today['count'] = df_today['name'].map(lambda x: prev_count_dict.get(x, 0)) + (df_today['rank'] <= 20).astype(int)
     return df_today
 
 def calculate_differences(new: pd.DataFrame, ranking_type: str, old = None):
-    """
-    计算数据差值
-    
+    """计算新旧数据之间的差值。
     Args:
-        new: 新数据
-        ranking_type: 榜单类型
-        old: 旧数据(可选，否则置为0)
-    
+        new (pd.Series): 新数据记录。
+        ranking_type (str): 榜单类型。
+        old (pd.Series, optional): 旧数据记录。如果为None，则差值等于新数据。
+
     Returns:
-        dict: 包含各项数据差值的字典
+        dict: 一个包含各项数据差值的字典。
     """
     if ranking_type in ('daily', 'weekly', 'monthly', 'annual'):
         return {col: new[col] - old.get(col, 0) for col in ['view', 'favorite', 'coin', 'like']}
@@ -139,9 +153,17 @@ def calculate_differences(new: pd.DataFrame, ranking_type: str, old = None):
         return {col: new[col] for col in ['view', 'favorite', 'coin', 'like']}
     
 def calculate(new: pd.DataFrame, old: pd.DataFrame, ranking_type: str):
-    """
-    计算完整评分
-    包括差值计算、评分计算和总分计算
+    """执行完整的单条记录评分计算流程。
+
+    该流程包括：计算数据差值、计算各项评分系数、计算最终总分。
+
+    Args:
+        new (pd.Series): 新的视频数据记录。
+        old (dict): 旧的视频数据记录。
+        ranking_type (str): 榜单类型。
+
+    Returns:
+        list: 包含差值、评分系数和总分的计算结果列表。
     """
     diff = [calculate_differences(new, ranking_type, old)[col] for col in ['view', 'favorite', 'coin', 'like']]
     scores = calculate_scores(*diff, new['copyright'], ranking_type)
@@ -150,9 +172,16 @@ def calculate(new: pd.DataFrame, old: pd.DataFrame, ranking_type: str):
     return diff + list(scores) + [point]
 
 def merge_duplicate_names(df):
-    """
-    合并具有相同曲名的重复记录
-    保留得分最高的一个记录
+    """合并DataFrame中具有相同曲名的重复记录。
+
+    当同一个曲名有多条记录时（例如，不同UP主上传的同一首歌曲），
+    此函数会根据'point'列的值，只保留得分最高的那条记录。
+
+    Args:
+        df (pd.DataFrame): 包含可能重复曲名记录的DataFrame。
+
+    Returns:
+        pd.DataFrame: 合并了重复记录后的DataFrame。
     """
     merged_df = pd.DataFrame()
     grouped = df.groupby('name')
@@ -167,3 +196,45 @@ def merge_duplicate_names(df):
             # 无重复则直接添加
             merged_df = pd.concat([merged_df, group])
     return merged_df
+
+def calculate_threshold(current_streak: int, census_mode: bool, base_threshold: int, streak_threshold: int) -> int:
+    """根据连续未达标次数和模式，计算播放增长阈值。
+
+    Args:
+        current_streak (int): 当前连续未达标次数。
+        census_mode (bool): 是否为普查模式。
+        base_threshold (int): 基础阈值。
+        streak_threshold (int): 触发动态阈值的连续未达标次数界限。
+
+    Returns:
+        int: 计算得到的播放增长阈值。
+    """
+    # 如果不是普查模式，统一使用基础阈值
+    if not census_mode:
+        return base_threshold
+    # 在普查模式下，根据超过阈值的天数动态调整阈值
+    # 每多一天，阈值增加一个基数，但增长有上限（最多7倍）
+    gap = min(7, max(0, current_streak - streak_threshold))
+    return base_threshold * (gap + 1)
+
+def calculate_failed_mask(all_songs_df: pd.DataFrame, update_df: pd.DataFrame, census_mode: bool, streak_threshold: int) -> pd.Series:
+    """计算并返回一个布尔掩码，标记哪些视频应被视为失效。
+
+    Args:
+        all_songs_df (pd.DataFrame): 包含所有已收录歌曲的DataFrame。
+        update_df (pd.DataFrame): 包含本轮已成功更新数据的DataFrame。
+        census_mode (bool): 是否为普查模式。
+        streak_threshold (int): 触发动态阈值的连续未达标次数界限。
+
+    Returns:
+        pd.Series: 一个布尔Series，True表示视频失效。
+    """
+    # 普查模式下，任何未在更新列表中的视频都视为失效
+    if census_mode:
+        return ~all_songs_df['bvid'].isin(update_df['bvid'])
+    # 常规模式下，只有连续未达标次数低于阈值且未被更新的视频才被视为失效
+    mask = (
+        (all_songs_df['streak'] < streak_threshold) & 
+        ~all_songs_df['bvid'].isin(update_df['bvid'])
+    )
+    return mask

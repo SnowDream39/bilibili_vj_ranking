@@ -13,57 +13,51 @@ def process_records(
     ranking_type='daily',
     old_time_toll=None
 ):
-    """
-    视频数据处理主函数
+    """处理一批视频记录，根据新旧数据计算增量得分，并可选择性地合并收录信息。
 
-    处理流程:
-    1. 遍历所有视频记录
-    2. 对每个视频:
-       - 获取BV号
-       - 获取新数据
-       - 匹配旧数据(如果需要)
-       - 补充收录数据(如果有)
-       - 计算分数
-    3. 生成处理后的DataFrame
+    该函数是数据处理的核心，它遍历新数据中的每条记录，根据配置匹配旧数据
+    和收录数据，调用计算模块生成分数，最终整合成一个DataFrame。
 
-    参数:
-        new_data (pd.DataFrame): 新获取的视频数据
-        old_data (pd.DataFrame, optional): 上期数据,用于计算增量（若为None则为总量）
-        use_old_data (bool): 是否使用上期数据对比
-        use_collected (bool): 是否是部分打标的新曲
-        collected_data (pd.DataFrame, optional): 收录曲目数据
-        ranking_type (str): 榜单类型(daily/weekly/monthly/annual/special)
-        old_time_toll (str): 旧数据时间阈值（格式：YYYYMMDD）
-    
-    返回:
-        pd.DataFrame: 处理后的结果
+    Args:
+        new_data (pd.DataFrame): 新获取的视频数据。
+        old_data (pd.DataFrame, optional): 上期数据，用于计算增量。
+        use_old_data (bool): 是否使用上期数据进行对比。
+        use_collected (bool): 是否需要从收录列表中补充元数据。
+        collected_data (pd.DataFrame, optional): 包含完整元数据的收录曲目列表。
+        ranking_type (str): 榜单类型（'daily', 'weekly', etc.）。
+        old_time_toll (str, optional): 旧数据时间阈值（格式：YYYYMMDD），用于过滤新曲。
+
+    Returns:
+        pd.DataFrame: 包含计算结果和完整信息的处理后数据。
     """
     result = []
     iterator = new_data.iterrows()
     
     for _, record in iterator:
-        # 获取BV号
+        # 获取当前记录的bvid作为唯一标识
         bvid = record.get('bvid')
         if not bvid:
             continue
 
-        # 获取新数据记录
+        # 在新数据中定位当前bvid的完整记录
         new_match = new_data['bvid'] == bvid
         if not new_match.any():
             continue
         new = new_data[new_match].squeeze()
         
-        # 处理旧数据匹配
+        # 如果需要，匹配并处理旧数据
         old = None
         if use_old_data:
+            # 在旧数据中查找匹配的记录
             old_match = old_data['bvid'] == bvid
             if old_match.any(): old = old_data[old_match].squeeze()
             else:
-                # 检查发布时间是否在限定范围内
+                # 对于旧数据中没有的视频，检查其发布时间
                 pubdate = datetime.strptime(new['pubdate'], "%Y-%m-%d %H:%M:%S")
                 threshold = datetime.strptime(old_time_toll, "%Y%m%d")
+                # 如果发布时间早于统计周期，则跳过 (属于更早的视频)
                 if pubdate < threshold: continue
-                # 旧视频缺省值
+                # 周期内的新视频，则创建一个全为0的旧数据记录用于计算增量
                 old = {'view': 0, 'favorite': 0, 'coin': 0, 'like': 0}
         
         # 需要通过收录曲目信息补充
@@ -71,12 +65,13 @@ def process_records(
             coll_match = collected_data['bvid'] == bvid
             if coll_match.any():
                 coll_rec = collected_data[coll_match].squeeze()
-                # 待补充的字段
+                # 遍历需要补充的字段，用收录列表中的信息进行更新
                 for field in ['name', 'author', 'synthesizer', 'copyright', 'vocal', 'type']:
                     new[field] = coll_rec.get(field, new[field])
         
-        # 计算各项数据
+        # 调用计算模块获取得分和各项系数
         data = calculate(new, old, ranking_type)
+        # 构建结果字典并添加到列表中
         result.append({
             'title': new['title'], 'bvid': bvid, 'aid': new['aid'], 'name': new['name'], 
             'author': new['author'], 'uploader': new['uploader'], 
@@ -91,8 +86,5 @@ def process_records(
             'fixC': f'{data[10]:.2f}', 'point': data[11], 
             'image_url': new['image_url']
         })
-        # 添加额外信息(如果需要)
-        if use_collected:
-            result[-1].update({'tags': new['tags'], 'description': new['description']})
-    
+        
     return pd.DataFrame(result)

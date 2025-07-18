@@ -152,4 +152,4 @@ if __name__ == "__main__":
             for _, row in df_10w_export.iterrows():
                 print(f"{row['10w_crossed']}万：{row['name']}   {row['bvid']}")
         
-    a = input()
+    input()
