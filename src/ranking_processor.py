@@ -97,7 +97,7 @@ class RankingProcessor:
         # 获取更新选项配置
         update_opts = self.config.config.get('update_options', {})
         if update_opts.get('count') or update_opts.get('rank_and_rate'):
-            previous_report_path = self.config.get_path('toll_ranking', target_date=dates['previous_date'])
+            previous_report_path = self.config.get_path('toll_ranking', 'output_paths', target_date=dates['previous_date'])
             # 更新在榜次数
             if update_opts.get('count', False):
                 toll_ranking = update_count(toll_ranking, previous_report_path)
@@ -106,7 +106,7 @@ class RankingProcessor:
                 toll_ranking = update_rank_and_rate(toll_ranking, previous_report_path)
         
         # 保存总榜数据
-        toll_ranking_path = self.config.get_path('toll_ranking', target_date=dates['target_date'])
+        toll_ranking_path = self.config.get_path('toll_ranking', 'output_paths', target_date=dates['target_date'])
         self.data_handler.save_df(toll_ranking, toll_ranking_path, 'final_ranking')
         # 如果配置了生成新曲榜，则执行生成流程
         if self.config.config.get('has_new_ranking', False):
@@ -149,7 +149,7 @@ class RankingProcessor:
         # 如果有符合条件的新曲，则计算排名并保存
         if not new_ranking.empty:
             new_ranking = calculate_ranks(new_ranking)
-            new_ranking_path = self.config.get_path('new_ranking', target_date=dates['target_date'])
+            new_ranking_path = self.config.get_path('new_ranking', 'output_paths', target_date=dates['target_date'])
             self.data_handler.save_df(new_ranking, new_ranking_path, 'final_ranking')
     
     def run_history(self, dates: dict):
