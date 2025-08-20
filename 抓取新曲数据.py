@@ -14,7 +14,7 @@ config = Config(
 
 async def main():
     scraper = BilibiliScraper(mode="new", days=2, config=config)
-    scraper.search_options = SearchOptions(video_zone_type=[3, 47]) 
+    scraper.search_options = [SearchOptions(video_zone_type=i) for i in [3,47]]
     videos = await scraper.process_new_songs()
     await scraper.save_to_excel(videos)
     await scraper.close_session()

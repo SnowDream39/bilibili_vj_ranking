@@ -52,11 +52,16 @@ class SearchOptions:
     """B站搜索参数配置类"""
     search_type: search.SearchObjectType = search.SearchObjectType.VIDEO
     order_type: search.OrderVideo = search.OrderVideo.PUBDATE
-    video_zone_type: Optional[List[int]] = None
+    video_zone_type: Optional[int] = None
     order_sort: Optional[int] = None
     time_start: Optional[str] = None
     time_end: Optional[str] = None
     page_size: Optional[int] = 30
+
+@dataclass
+class SearchRestrictions:
+    """B站搜索过滤条件配置类"""
+    min_likes: Optional[int] = None
 
 @dataclass
 class Config:
@@ -90,7 +95,8 @@ class BilibiliScraper:
     """
     # 确定今天的日期，如果当前时间超过晚上11点，则算作第二天
     today: datetime = (datetime.now() + timedelta(days=1) if datetime.now().hour >= 23 else datetime.now()).replace(hour=0, minute=0, second=0, microsecond=0)
-    search_options: SearchOptions = SearchOptions()
+    search_options: list[SearchOptions] = [SearchOptions()]
+    search_restrictions: SearchRestrictions | None
     proxy = None
 
     def __init__(self, 
@@ -98,7 +104,8 @@ class BilibiliScraper:
                  input_file: Union[str, Path, None] = None, 
                  days: int = 2,
                  config: Config = Config(), 
-                 search_options: SearchOptions = SearchOptions(),
+                 search_options: list[SearchOptions] = [SearchOptions()],
+                 search_restrictions: SearchRestrictions | None = None,
                  proxy: Optional[Proxy] = None,
                 ):
         """
@@ -112,10 +119,11 @@ class BilibiliScraper:
             search_options: 搜索参数配置对象。
             proxy: 代理配置对象。
         """
-        self.mode = mode
+        self.mode: Literal["new", "old", "special", None] = mode
         self.config = config
         self.config.OUTPUT_DIR.mkdir(exist_ok=True)
         self.search_options = search_options
+        self.search_restrictions = search_restrictions
         self.session = None
         self.sem = asyncio.Semaphore(self.config.SEMAPHORE_LIMIT)
         self.retry_handler = RetryHandler(Config.MAX_RETRIES, Config.SLEEP_TIME)
@@ -231,13 +239,13 @@ class BilibiliScraper:
             time_start= search_options.time_start,
             time_end= search_options.time_end,
             page=page,
-            page_size= search_options.page_size
+            page_size= search_options.page_size or 30
         )
-    
+
     async def get_video_list_by_zone(self, rid: int = 30, ps: int = 50) -> List[str]:
         """
         通过B站分区API获取指定时间范围内的视频列表。
-        
+
         Args:
             rid: 分区ID (默认为30, VOCALOID)。
             ps: 每页视频数。
@@ -281,27 +289,7 @@ class BilibiliScraper:
             # 即使出错也返回已获取到的部分数据
             return list(set(aids))
 
-    async def get_video_list_by_search(self, time_filtering: bool = False) -> List[str]:
-        """
-        通过搜索API，遍历所有配置的分区和关键词，获取视频列表。
-        
-        Args:
-            time_filtering: 是否按发布时间过滤结果。
-            
-        Returns:
-            所有找到的视频aid字符串列表。
-        """
-        all_aids = set()
-        # 遍历配置中的所有分区
-        for zone in self.search_options.video_zone_type:
-            # 对每个分区进行搜索
-            aids = await self.get_video_list_by_search_for_zone(zone, time_filtering=time_filtering)
-            all_aids.update(aids)
-            await asyncio.sleep(self.config.SLEEP_TIME)
-
-        return list(all_aids)
-    
-    async def get_video_list_by_search_for_zone(self, zone: Optional[int], time_filtering: bool = False) -> List[str]:
+    async def get_video_list_by_search_for_zone(self, search_options: SearchOptions) -> List[str]:
         """
         在指定分区内，通过批量和并发的方式搜索视频。
         
@@ -321,7 +309,7 @@ class BilibiliScraper:
         while active_keywords:
             # 从活动关键词列表中取出一个批次进行处理
             current_batch = active_keywords[:batch_size]
-            logger.info(f'[分区 {zone}] 处理关键词批次: {current_batch}')
+            logger.info(f'[分区 {search_options.video_zone_type}] 处理关键词批次: {current_batch}')
 
             # 使用信号量控制并发数量
             async def sem_fetch(keyword: str) -> Dict:
@@ -330,20 +318,12 @@ class BilibiliScraper:
                     if self.proxy:
                         request_settings.set_proxy(self.proxy.proxy_server)
                     
-                    # 构建搜索参数
-                    search_opts = SearchOptions(
-                        search_type=self.search_options.search_type,
-                        order_type=self.search_options.order_type,
-                        video_zone_type=zone,
-                        time_start=self.search_options.time_start,
-                        time_end=self.search_options.time_end
-                    )
                     # 使用带重试的处理器执行搜索
                     result = await self.retry_handler.retry_async(
                         self.search_by_type, 
                         keyword, 
                         keyword_pages[keyword], 
-                        search_opts
+                        search_options
                     )
                     
                     if result:
@@ -356,19 +336,15 @@ class BilibiliScraper:
                     
                     temp_aids = []
                     for item in videos:
-                        # 如果需要按时间过滤
-                        if time_filtering:
-                            pubdate = datetime.fromtimestamp(item['pubdate'])
-                            if pubdate >= self.start_time:
-                                temp_aids.append(str(item['aid']))
-                                logger.info(f"[分区 {zone}] 发现视频: {item['aid']} (关键词 {keyword} 第{keyword_pages[keyword]}页)")
-                            else:
-                                # 如果遇到一个过时的视频，则认为该关键词后续结果都已过时，停止搜索
+
+                        if self.search_restrictions:
+                            # 如果满足 search_restrictions 设置的条件，立即结束
+                            # 此处一条一条检查结束条件
+                            if self.search_restrictions.min_likes and item['favorites'] < self.search_restrictions.min_likes:
                                 return {'end': True, 'keyword': keyword, 'aids': temp_aids}
-                        else:
-                            # 不需要时间过滤，直接收集
-                            temp_aids.append(str(item['aid']))
-                            logger.info(f"[分区 {zone}] 发现视频: {item['aid']} (关键词 {keyword} 第{keyword_pages[keyword]}页)")
+                            
+                        temp_aids.append(str(item['aid']))
+                        logger.info(f"[分区 {search_options.video_zone_type}] 发现视频: {item['aid']} (关键词 {keyword} 第{keyword_pages[keyword]}页)")
                     
                     await asyncio.sleep(self.config.SLEEP_TIME * 2)
                     # 返回本次抓取结果，并标记该关键词未结束
@@ -423,7 +399,7 @@ class BilibiliScraper:
             logger.info(f"正在通过 medialist 接口处理批次 {i//BATCH_SIZE + 1}，包含 {len(batch_aids)} 个视频...")
 
             try:
-                async with session.get(url, headers={'User-Agent': random.choice(self.config.HEADERS)}, timeout=15) as response:
+                async with session.get(url, headers={'User-Agent': random.choice(self.config.HEADERS)}, timeout=aiohttp.ClientTimeout(total=15)) as response:
                     if response.status == 200:
                         data = await response.json()
                         if data.get('code') == 0 and data.get('data'):
@@ -447,15 +423,28 @@ class BilibiliScraper:
     async def get_all_aids(self) -> List[str]:
         """
         综合搜索和分区两种方式获取目标视频的aid列表。
+
+        仅用于新曲或者特刊，很显然吧。
         
         Returns:
             去重后的aid字符串列表。
         """
         # 首先通过关键词搜索获取aid
-        aids = set(await self.get_video_list_by_search(time_filtering = self.mode == "new"))
+        all_aids = set()
+
+        for search_option in self.search_options:
+            # 如果是新曲模式，首先限定日期为两天内
+            if self.mode == "new":
+                search_option.time_start = (datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d")
+                search_option.time_end = datetime.now().strftime("%Y-%m-%d")
+            # 对每个分区进行搜索
+            aids = await self.get_video_list_by_search_for_zone(search_option)
+            all_aids.update(aids)
+            await asyncio.sleep(self.config.SLEEP_TIME)
+
         # 如果是新曲模式，额外通过分区最新列表获取aid，作为补充
         if self.mode == "new":
-            aids.update(await self.get_video_list_by_zone())
+            all_aids.update(await self.get_video_list_by_zone())
         return list(set(aids))
     
     async def get_video_details(self, aids: List[str]) -> List[VideoInfo]:
@@ -468,12 +457,12 @@ class BilibiliScraper:
         Returns:
             成功获取的VideoInfo对象列表。
         """
-        aids = [int(aid) for aid in aids if aid and aid.isdigit()]
-        if not aids:
+        int_aids = [int(aid) for aid in aids if aid and aid.isdigit()]
+        if not int_aids:
             return []
             
         need_extra = self.mode in ["new", "special"]
-        stats = await self.get_batch_details_by_aid(aids, need_extra=need_extra)
+        stats = await self.get_batch_details_by_aid(int_aids, need_extra=need_extra)
         
         videos = []
         for aid, info in stats.items():
@@ -528,6 +517,10 @@ class BilibiliScraper:
                 logger.error(f"处理视频 {aid} 信息时出错: {e}")
                 
         return videos
+
+    # =================
+    # 对外提供的处理新曲和旧曲的主要逻辑
+    # =================
 
     def update_recorded_songs(self, videos: List[VideoInfo], census_mode: bool):
         """
