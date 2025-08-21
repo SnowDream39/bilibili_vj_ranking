@@ -61,7 +61,7 @@ class SearchOptions:
 @dataclass
 class SearchRestrictions:
     """B站搜索过滤条件配置类"""
-    min_likes: Optional[int] = None
+    min_favorite: Optional[int] = None
 
 @dataclass
 class Config:
@@ -340,7 +340,7 @@ class BilibiliScraper:
                         if self.search_restrictions:
                             # 如果满足 search_restrictions 设置的条件，立即结束
                             # 此处一条一条检查结束条件
-                            if self.search_restrictions.min_likes and item['favorites'] < self.search_restrictions.min_likes:
+                            if self.search_restrictions.min_favorite and item['favorites'] < self.search_restrictions.min_favorite:
                                 return {'end': True, 'keyword': keyword, 'aids': temp_aids}
                             
                         temp_aids.append(str(item['aid']))
@@ -423,28 +423,24 @@ class BilibiliScraper:
     async def get_all_aids(self) -> List[str]:
         """
         综合搜索和分区两种方式获取目标视频的aid列表。
-
-        仅用于新曲或者特刊，很显然吧。
         
         Returns:
             去重后的aid字符串列表。
         """
         # 首先通过关键词搜索获取aid
-        all_aids = set()
+        aids = set()
 
         for search_option in self.search_options:
-            # 如果是新曲模式，首先限定日期为两天内
             if self.mode == "new":
-                search_option.time_start = (datetime.now() - timedelta(days=2)).strftime("%Y-%m-%d")
-                search_option.time_end = datetime.now().strftime("%Y-%m-%d")
+                search_option.time_start = self.start_time.strftime('%Y-%m-%d')
+                search_option.time_end = self.today.strftime('%Y-%m-%d')
             # 对每个分区进行搜索
-            aids = await self.get_video_list_by_search_for_zone(search_option)
-            all_aids.update(aids)
+            aids.update(await self.get_video_list_by_search_for_zone(search_option))
             await asyncio.sleep(self.config.SLEEP_TIME)
 
         # 如果是新曲模式，额外通过分区最新列表获取aid，作为补充
         if self.mode == "new":
-            all_aids.update(await self.get_video_list_by_zone())
+            aids.update(await self.get_video_list_by_zone())
         return list(set(aids))
     
     async def get_video_details(self, aids: List[str]) -> List[VideoInfo]:
@@ -517,10 +513,6 @@ class BilibiliScraper:
                 logger.error(f"处理视频 {aid} 信息时出错: {e}")
                 
         return videos
-
-    # =================
-    # 对外提供的处理新曲和旧曲的主要逻辑
-    # =================
 
     def update_recorded_songs(self, videos: List[VideoInfo], census_mode: bool):
         """

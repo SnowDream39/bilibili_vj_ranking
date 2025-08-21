@@ -1,9 +1,8 @@
 # 抓取特殊数据.py
 import asyncio
-from bilibili_api import search, video_zone
+from bilibili_api import search
 from pathlib import Path
 from src.bilibili_scraper import Config, SearchOptions, BilibiliScraper, SearchRestrictions
-from utils.clash import Clash
 import yaml
 import json
 
@@ -22,7 +21,7 @@ config = Config(
 )
 
 restrictions = SearchRestrictions(
-    min_likes= 10000,
+    min_favorite= 10000,
 )
 
 search_options = [SearchOptions(
