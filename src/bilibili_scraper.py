@@ -326,14 +326,12 @@ class BilibiliScraper:
                         search_options
                     )
                     
-                    if result:
-                        videos = result.get('result', [])
-                        # 如果搜索结果为空，说明该关键词已搜完
-                        if not videos:
-                            return {'end': True, 'keyword': keyword, 'aids': []}
-                    else:
-                        raise Exception("搜索结果为空失败")
+                    if not result or 'result' not in result:
+                        return {'end': True, 'keyword': keyword, 'aids': []}
                     
+                    videos = result.get('result', [])
+                    end = not videos or len(videos) < search_options.page_size
+
                     temp_aids = []
                     for item in videos:
 
@@ -346,9 +344,8 @@ class BilibiliScraper:
                         temp_aids.append(str(item['aid']))
                         logger.info(f"[分区 {search_options.video_zone_type}] 发现视频: {item['aid']} (关键词 {keyword} 第{keyword_pages[keyword]}页)")
                     
-                    await asyncio.sleep(self.config.SLEEP_TIME * 2)
                     # 返回本次抓取结果，并标记该关键词未结束
-                    return {'end': False, 'keyword': keyword, 'aids': temp_aids}
+                    return {'end': end, 'keyword': keyword, 'aids': temp_aids}
 
             # 创建并执行一批并发任务
             tasks = [sem_fetch(keyword) for keyword in current_batch]
@@ -371,7 +368,7 @@ class BilibiliScraper:
                 remaining_keywords = [k for k in active_keywords if k not in current_batch]
                 active_keywords = remaining_keywords + [k for k in current_batch if k in active_keywords]
 
-            await asyncio.sleep(self.config.SLEEP_TIME)
+            await asyncio.sleep(self.config.SLEEP_TIME * 2)
 
         return list(set(aids))
     
@@ -399,7 +396,7 @@ class BilibiliScraper:
             logger.info(f"正在通过 medialist 接口处理批次 {i//BATCH_SIZE + 1}，包含 {len(batch_aids)} 个视频...")
 
             try:
-                async with session.get(url, headers={'User-Agent': random.choice(self.config.HEADERS)}, timeout=aiohttp.ClientTimeout(total=15)) as response:
+                async with session.get(url, headers={'User-Agent': random.choice(self.config.HEADERS)}, timeout=15) as response:
                     if response.status == 200:
                         data = await response.json()
                         if data.get('code') == 0 and data.get('data'):

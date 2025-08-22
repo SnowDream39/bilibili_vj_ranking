@@ -9,7 +9,7 @@ with open('config/keywords.json', 'r', encoding='utf-8') as file:
 
 config = Config(
     KEYWORDS= keywords,
-    OUTPUT_DIR=Path('测试内容'),
+    OUTPUT_DIR=Path('新曲数据'),
 )
 
 async def main():
