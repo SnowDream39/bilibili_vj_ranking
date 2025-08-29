@@ -2,6 +2,7 @@
 # 数据处理器模块：管理数据的读取、合并和保存操作
 import pandas as pd
 from pathlib import Path
+from typing import Optional
 import json
 from utils.config_handler import ConfigHandler
 from utils.io_utils import save_to_excel
@@ -75,7 +76,7 @@ class DataHandler:
         toll_path = self.config.get_data_source_path('toll_data', date=date)
         return self._read_excel(toll_path, usecols_key='stat')
 
-    def save_df(self, df: pd.DataFrame, path: Path, usecols_key: str = None):
+    def save_df(self, df: pd.DataFrame, path: Path, usecols_key: Optional[str] = None):
         """将DataFrame保存到指定的路径，可选择性地只保存特定列。
 
         Args:

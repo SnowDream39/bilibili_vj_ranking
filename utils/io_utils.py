@@ -31,17 +31,21 @@ def save_to_excel(df: pd.DataFrame, filename: Union[str, Path], usecols: Optiona
             
             # 设置'pubdate'列为文本格式并左对齐
             if 'pubdate' in df.columns:
-                pubdate_col = get_column_letter(df.columns.get_loc('pubdate') + 1)
-                for cell in worksheet[pubdate_col]:
-                    cell.number_format = '@'
-                    cell.alignment = cell.alignment.copy(horizontal='left')
+                col_idx = df.columns.get_loc('pubdate')
+                if isinstance(col_idx, int):
+                    pubdate_col_letter = get_column_letter(col_idx + 1)
+                    for cell in worksheet[pubdate_col_letter]:
+                        cell.number_format = '@'
+                        cell.alignment = cell.alignment.copy(horizontal='left')
             
             # 设置'aid'列为文本格式并左对齐
             if 'aid' in df.columns:
-                aid_col_letter = get_column_letter(df.columns.get_loc('aid') + 1)
-                for cell in worksheet[aid_col_letter]:
-                    cell.number_format = '@'
-                    cell.alignment = cell.alignment.copy(horizontal='left')
+                col_idx = df.columns.get_loc('aid')
+                if isinstance(col_idx, int):
+                    aid_col_letter = get_column_letter(col_idx + 1)
+                    for cell in worksheet[aid_col_letter]:
+                        cell.number_format = '@'
+                        cell.alignment = cell.alignment.copy(horizontal='left')
                     
         logger.info(f"{filename} 保存完成")
     except Exception as e:

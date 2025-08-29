@@ -4,6 +4,7 @@ from pathlib import Path
 import yaml
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
+from typing import Optional
 
 class ConfigHandler:
     """
@@ -12,17 +13,16 @@ class ConfigHandler:
     def __init__(self, period: str):
         """初始化配置处理器。
 
-        Args:
             period (str): 周期类型，如 'daily', 'weekly', 'monthly'。
         """
         # 读取配置文件
         with open('config/rankings.yaml', 'r', encoding='utf-8') as f:
             all_configs = yaml.safe_load(f)
-        self.period = period 
+        self.period = period
         self.config = all_configs[period]
         self.data_sources = all_configs.get('data_sources', {})
 
-    def get_path(self, key: str, path_type: str = None, **kwargs) -> Path:
+    def get_path(self, key: str, path_type: Optional[str] = None, **kwargs) -> Path:
         """根据配置键和可选参数动态生成并返回一个完整的文件路径。
 
         该方法会从配置文件中获取路径模板，使用提供的关键字参数填充它。

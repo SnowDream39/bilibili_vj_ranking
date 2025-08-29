@@ -7,7 +7,7 @@ from bilibili_api import request_settings, search
 from datetime import datetime, timedelta
 import random
 from dataclasses import dataclass, asdict, field
-from typing import List, Optional, Dict, Literal, Any, Union
+from typing import List, Optional, Dict, Literal, Any, Set, Union
 from pathlib import Path
 import json
 from utils.logger import logger
@@ -43,7 +43,7 @@ class VideoInfo:
 @dataclass    
 class VideoInvalidException(Exception):
     """自定义异常，用于表示视频已失效或无法访问。"""
-    def __init__(self, message):
+    def __init__(self, message: str):
         super().__init__(message)
         self.message = message
 
@@ -205,7 +205,7 @@ class BilibiliScraper:
         # 对于已标记为失效的视频，其streak计数重置为0
         self.songs.loc[self.songs['is_failed'], 'streak'] = 0
 
-    async def fetch_data(self, url: str) -> Optional[Dict]:
+    async def fetch_data(self, url: str) -> Optional[Dict[str, Any]]:
         """
         通用的异步HTTP GET请求函数，支持随机User-Agent和自动JSON解析。
         
@@ -222,7 +222,7 @@ class BilibiliScraper:
                     return await response.json()
         return None
 
-    def search_by_type(self, keyword, page, search_options: SearchOptions):
+    def search_by_type(self, keyword: str, page: int, search_options: SearchOptions):
         """
         封装 bilibili-api 的搜索功能。
         
@@ -312,7 +312,7 @@ class BilibiliScraper:
             logger.info(f'[分区 {search_options.video_zone_type}] 处理关键词批次: {current_batch}')
 
             # 使用信号量控制并发数量
-            async def sem_fetch(keyword: str) -> Dict:
+            async def sem_fetch(keyword: str) -> Dict[str, Any]:
                 """并发搜索处理函数"""
                 async with self.sem:
                     if self.proxy:
@@ -330,7 +330,7 @@ class BilibiliScraper:
                         return {'end': True, 'keyword': keyword, 'aids': []}
                     
                     videos = result.get('result', [])
-                    end = not videos or len(videos) < search_options.page_size
+                    end = not videos or len(videos) < (search_options.page_size or 30)
 
                     temp_aids = []
                     for item in videos:
@@ -372,7 +372,7 @@ class BilibiliScraper:
 
         return list(set(aids))
     
-    async def get_batch_details_by_aid(self, aids: List[int], need_extra: bool = False) -> Dict[int, Dict]:
+    async def get_batch_details_by_aid(self, aids: List[int], need_extra: bool = False) -> Dict[int, Dict[str, Any]]:
         """
         使用B站medialist接口批量获取视频的详细信息。
         
@@ -396,7 +396,7 @@ class BilibiliScraper:
             logger.info(f"正在通过 medialist 接口处理批次 {i//BATCH_SIZE + 1}，包含 {len(batch_aids)} 个视频...")
 
             try:
-                async with session.get(url, headers={'User-Agent': random.choice(self.config.HEADERS)}, timeout=15) as response:
+                async with session.get(url, headers={'User-Agent': random.choice(self.config.HEADERS)}, timeout=aiohttp.ClientTimeout(total=15)) as response:
                     if response.status == 200:
                         data = await response.json()
                         if data.get('code') == 0 and data.get('data'):
@@ -425,7 +425,7 @@ class BilibiliScraper:
             去重后的aid字符串列表。
         """
         # 首先通过关键词搜索获取aid
-        aids = set()
+        aids: Set[str] = set()
 
         for search_option in self.search_options:
             if self.mode == "new":
@@ -438,7 +438,7 @@ class BilibiliScraper:
         # 如果是新曲模式，额外通过分区最新列表获取aid，作为补充
         if self.mode == "new":
             aids.update(await self.get_video_list_by_zone())
-        return list(set(aids))
+        return list(set(aids))  
     
     async def get_video_details(self, aids: List[str]) -> List[VideoInfo]:
         """
@@ -457,7 +457,7 @@ class BilibiliScraper:
         need_extra = self.mode in ["new", "special"]
         stats = await self.get_batch_details_by_aid(int_aids, need_extra=need_extra)
         
-        videos = []
+        videos: List[VideoInfo] = []
         for aid, info in stats.items():
             try:
                 title = clean_tags(info.get('title', ''))
@@ -558,6 +558,8 @@ class BilibiliScraper:
         logger.info(f"一共有 {len(aids)} 个 aid")
         # 根据aid获取视频详细信息
         videos = await self.get_video_details(aids)
+        
+        videos = [video for video in videos if datetime.strptime(video.pubdate, '%Y-%m-%d %H:%M:%S') > self.start_time]
         # 将VideoInfo对象列表转换为字典列表
         return [asdict(video) for video in videos]
     

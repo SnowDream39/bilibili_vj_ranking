@@ -41,8 +41,11 @@ class RankingProcessor:
         period = self.config.period
         # 根据不同的榜单周期调用相应的处理函数
         if period in ['weekly', 'monthly', 'annual']:
+            dates = kwargs.get('dates')
+            if not isinstance(dates, dict):
+                raise ValueError(f"'{period}' 模式需要一个 'dates' 字典参数。")
             # 处理周刊、月刊、年刊
-            self.run_periodic_ranking(kwargs.get('dates'))
+            self.run_periodic_ranking(dates)
         
         elif period == 'daily':
             # 异步处理每日数据差异
@@ -58,11 +61,17 @@ class RankingProcessor:
 
         elif period == 'special':
             # 处理特刊
-            self.run_special(kwargs.get('song_data'))
+            song_data = kwargs.get('song_data')
+            if not isinstance(song_data, str):
+                raise ValueError("'special' 模式需要一个 'song_data' 字符串参数。")
+            self.run_special(song_data)
     
         elif period == 'history':
             # 处理历史回顾
-            self.run_history(kwargs.get('dates'))
+            dates = kwargs.get('dates')
+            if not isinstance(dates, dict):
+                raise ValueError("'history' 模式需要一个 'dates' 字典参数。")
+            self.run_history(dates)
         
         else:
             raise ValueError(f"未知的任务类型: {period}")
@@ -309,13 +318,12 @@ class RankingProcessor:
             old_path = self.config.get_path('main_data', 'input_paths', date=dates['old_date'])
             new_path = self.config.get_path('main_data', 'input_paths', date=dates['new_date'])
             output_path = self.config.get_path('main_diff', 'output_paths', **dates)
-            use_collected, collected_data, point_threshold = False, None, None
+            collected_data, point_threshold = None, None
         elif task_type == 'new_song':
             # 新曲任务的路径和参数
             old_path = self.config.get_path('new_song_data', 'input_paths', date=dates['old_date'])
             new_path = self.config.get_path('new_song_data', 'input_paths', date=dates['new_date'])
             output_path = self.config.get_path('new_song_diff', 'output_paths', **dates)
-            use_collected = True
             collected_path = self.config.get_path('collected_songs', 'input_paths')
             # 使用异步线程读取Excel，避免阻塞事件循环
             collected_data = await asyncio.to_thread(pd.read_excel, collected_path)
@@ -330,7 +338,7 @@ class RankingProcessor:
         # 调用核心处理函数，计算得分
         df = process_records(
             new_data=new_data, old_data=old_data, use_old_data=True,
-            use_collected=use_collected, collected_data=collected_data,
+            collected_data=collected_data,
             ranking_type='daily', old_time_toll=dates['old_date']
         )
         # 如果设置了得分阈值，则进行筛选
@@ -360,7 +368,6 @@ class RankingProcessor:
             new_data=df,
             ranking_type = self.config.config.get('ranking_type', 'special'),
             use_old_data = processing_opts.get('use_old_data'),
-            use_collected = processing_opts.get('use_collected'),
             collected_data = pd.read_excel(processing_opts.get('collected_data'))
         )
         # 合并同名曲目并计算排名
@@ -369,7 +376,7 @@ class RankingProcessor:
         
         self.data_handler.save_df(df, output_path)
 
-    def filter_new_song(self, df, previous_rank_df):
+    def filter_new_song(self, df: pd.DataFrame, previous_rank_df: pd.DataFrame):
         """过滤新曲榜数据，只保留排名上升或新上榜的歌曲，并重新计算排名。
         
         Args:
@@ -392,7 +399,7 @@ class RankingProcessor:
         # 遍历每一行，判断调整后的新排名是否优于旧排名
         # 如果排名上升或新上榜，则更新其排名并加入新列表
         # 如果排名下降或不变，则增加ignore_rank计数器，这会动态地使后续歌曲的排名标准更宽松
-        [(row.update({'rank_previous': row['rank']-ignore_rank, 'rank': row['rank']-ignore_rank}) or new_ranking.append(row) ) if (row['rank']-ignore_rank) < row['rank_previous'] else (ignore_rank := ignore_rank+1) for _, row in df.iterrows() ]
+        [(row.__setitem__('rank_previous', row['rank'] - ignore_rank) or row.__setitem__('rank', row['rank'] - ignore_rank) or new_ranking.append(row) ) if (row['rank']-ignore_rank) < row['rank_previous'] else (ignore_rank := ignore_rank+1) for _, row in df.iterrows() ]
         return pd.DataFrame(new_ranking).sort_values(by='rank').reset_index(drop=True)
     
     def run_daily_new_song(self):

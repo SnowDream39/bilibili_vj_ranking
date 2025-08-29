@@ -2,6 +2,8 @@
 # 计算模块: 处理视频数据的计算逻辑
 # 包括播放、收藏、硬币、点赞等数据的分数计算和排名更新
 
+from pathlib import Path
+from typing import List, Optional, Tuple
 import pandas as pd
 from math import ceil, floor
 from utils.io_utils import format_columns
@@ -52,7 +54,7 @@ def calculate_scores(view: int, favorite: int, coin: int, like: int, copyright: 
 
     return viewR, favoriteR, coinR, likeR, fixA, fixB, fixC
 
-def calculate_points(diff, scores):
+def calculate_points(diff: List[float], scores: Tuple[float, ...]) -> float:
     """
     根据数据增量和评分系数计算总分。
     
@@ -74,7 +76,7 @@ def calculate_points(diff, scores):
     likeP = diff[3] * likeR             # 点赞得分
     return viewP + favoriteP + coinP + likeP
 
-def calculate_ranks(df):
+def calculate_ranks(df: pd.DataFrame) -> pd.DataFrame:
     """计算DataFrame中各项指标的排名。
     
     Args:
@@ -92,7 +94,7 @@ def calculate_ranks(df):
     df['rank'] = df['point'].rank(ascending=False, method='min')
     return format_columns(df)
 
-def update_rank_and_rate(df_today, prev_file_path):
+def update_rank_and_rate(df_today: pd.DataFrame, prev_file_path: Path) -> pd.DataFrame:
     """与上期数据比较，更新排名变化和得分增长率。
 
     Args:
@@ -120,7 +122,7 @@ def update_rank_and_rate(df_today, prev_file_path):
     df_today = df_today.sort_values('point', ascending=False)
     return df_today
 
-def update_count(df_today, prev_file_path):
+def update_count(df_today: pd.DataFrame, prev_file_path: Path) -> pd.DataFrame:
     """更新视频的在榜次数。
     Args:
         df_today (pd.DataFrame): 当前周期的榜单数据。
@@ -136,7 +138,7 @@ def update_count(df_today, prev_file_path):
     df_today['count'] = df_today['name'].map(lambda x: prev_count_dict.get(x, 0)) + (df_today['rank'] <= 20).astype(int)
     return df_today
 
-def calculate_differences(new: pd.DataFrame, ranking_type: str, old = None):
+def calculate_differences(new: pd.Series, ranking_type: str, old: Optional[pd.Series] = None):
     """计算新旧数据之间的差值。
     Args:
         new (pd.Series): 新数据记录。
@@ -147,12 +149,17 @@ def calculate_differences(new: pd.DataFrame, ranking_type: str, old = None):
         dict: 一个包含各项数据差值的字典。
     """
     if ranking_type in ('daily', 'weekly', 'monthly', 'annual'):
+        if old is None:
+            raise
         return {col: new[col] - old.get(col, 0) for col in ['view', 'favorite', 'coin', 'like']}
     # 特刊按总数据值计算
     elif ranking_type == 'special':
         return {col: new[col] for col in ['view', 'favorite', 'coin', 'like']}
     
-def calculate(new: pd.DataFrame, old: pd.DataFrame, ranking_type: str):
+    else:
+        raise
+
+def calculate(new: pd.Series, old: Optional[pd.Series], ranking_type: str):
     """执行完整的单条记录评分计算流程。
 
     该流程包括：计算数据差值、计算各项评分系数、计算最终总分。
@@ -166,12 +173,12 @@ def calculate(new: pd.DataFrame, old: pd.DataFrame, ranking_type: str):
         list: 包含差值、评分系数和总分的计算结果列表。
     """
     diff = [calculate_differences(new, ranking_type, old)[col] for col in ['view', 'favorite', 'coin', 'like']]
-    scores = calculate_scores(*diff, new['copyright'], ranking_type)
+    scores = calculate_scores(diff[0], diff[1], diff[2], diff[3], new['copyright'], ranking_type)
     point = round(scores[5] * scores[6] * calculate_points(diff, scores))
     
     return diff + list(scores) + [point]
 
-def merge_duplicate_names(df):
+def merge_duplicate_names(df: pd.DataFrame) -> pd.DataFrame:
     """合并DataFrame中具有相同曲名的重复记录。
 
     当同一个曲名有多条记录时（例如，不同UP主上传的同一首歌曲），
@@ -189,9 +196,9 @@ def merge_duplicate_names(df):
     for _, group in grouped:
         if len(group) > 1:
             # 获取组内最高分的记录
-            best_record = group.loc[group['point'].idxmax()].copy() 
+            best_record = group.loc[group['point'].idxmax()].copy()
             # 将最高分记录添加到结果中
-            merged_df = pd.concat([merged_df, best_record.to_frame().T])
+            merged_df = pd.concat([merged_df, pd.DataFrame([best_record])])
         else: 
             # 无重复则直接添加
             merged_df = pd.concat([merged_df, group])

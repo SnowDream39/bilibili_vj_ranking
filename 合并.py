@@ -22,10 +22,11 @@ def upload():
             local_files = data['local_files']
 
     ssh = connect_ssh(HOST, PORT, USERNAME, PASSWORD)
-    sftp = ssh.open_sftp()  
-    upload_files(sftp, local_files, REMOTE_PATH)
-    close_connections(sftp, ssh)
-    input("上传完成")
+    if ssh:
+        sftp = ssh.open_sftp()  
+        upload_files(sftp, local_files, REMOTE_PATH)
+        close_connections(sftp, ssh)
+        input("上传完成")
     
 if __name__ == "__main__":
     asyncio.run(main())

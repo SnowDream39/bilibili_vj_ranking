@@ -9,7 +9,7 @@ weekly:
   ranking_type: "weekly"
   has_new_ranking: true
   update_options:
-    count: true         # 更新在榜周数
+    count: true # 更新在榜周数
     rank_and_rate: true # 更新上周排名和rate
   output_paths:
     toll_ranking: "周刊/总榜/{target_date}.xlsx"
@@ -20,7 +20,7 @@ monthly:
   ranking_type: "monthly"
   has_new_ranking: true
   update_options:
-    count: false        # 月刊无在榜次数
+    count: false # 月刊无在榜次数
     rank_and_rate: true
   output_paths:
     toll_ranking: "月刊/总榜/{target_date}.xlsx"
@@ -38,7 +38,7 @@ annual:
 
 # 日刊
 daily:
-  threshold: 1000  # 新曲日增阈值
+  threshold: 1000 # 新曲日增阈值
   input_paths:
     main_data: "数据/{date}.xlsx"
     new_song_data: "新曲数据/新曲{date}.xlsx"
@@ -73,10 +73,9 @@ daily_combination:
 # 特刊
 special:
   ranking_type: "special"
-  
+
   processing_options:
     use_old_data: false
-    use_collected: false
     collected_data: "收录曲目.xlsx"
 
   paths:
