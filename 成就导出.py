@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List, Dict, Tuple, Set, Optional
+from typing import List, Dict, Tuple, Set, Optional, Union
 import pandas as pd
 from collections import deque, defaultdict
 from datetime import datetime
@@ -10,7 +10,7 @@ from utils.logger import logger
 @dataclass
 class AchiDef:
     name: str
-    condition: dict
+    condition: Dict[str, int]
 
 class AchiType(Enum):
     EMERGING_HIT = "Emerging Hit!"
@@ -50,8 +50,8 @@ class Achievement:
         }
         self.window_size = max(d.condition.get("weeks", 1) for d in self.definition.values()) if self.definition else 0
 
-    def detect(self, history: deque, name: str) -> Set[AchiType]:
-        achieved = set()
+    def detect(self, history: deque[List[str]], name: str) -> Set[AchiType]: 
+        achieved: Set[AchiType] = set()
         hist_list = list(history)
 
         for type, definition in self.definition.items():
@@ -84,7 +84,7 @@ class WeeklyHonor:
         self.master_db: Dict[AchiType, Dict[str, Tuple[int, str]]] = self.load_master_db()
 
     def load_master_db(self) -> Dict[AchiType, Dict[str, Tuple[int, str]]]:
-        db = defaultdict(dict)
+        db: Dict[AchiType, Dict[str, Tuple[int, str]]] = defaultdict(dict)
         if not self.master_file.exists():
             return db
         
@@ -101,7 +101,7 @@ class WeeklyHonor:
         with pd.ExcelWriter(self.master_file, engine='openpyxl') as writer:
             for type, song_map in self.master_db.items():
                 if song_map:
-                    rows = [{'name': name, 'index': idx, 'progress': progress}
+                    rows: List[Dict[str, Union[str, int]]] = [{'name': name, 'index': idx, 'progress': progress}
                                 for name, (idx, progress) in sorted(song_map.items(), key=lambda item: (item[1][0], item[0]))]
                     df = pd.DataFrame(rows)
                     df.to_excel(writer, sheet_name = type.value, index=False)
@@ -109,10 +109,10 @@ class WeeklyHonor:
     def save_report(self, date: str, report_data: Dict[AchiType, List[AchievedSong]]):
         output_file = self.output_path / f"成就{date}.xlsx"
         usecols = ['title', 'bvid', 'name', 'author', 'pubdate', 'honor']
-        all_dfs = []
+        all_dfs: List[pd.DataFrame] = []
         for type in AchiType:
             songs = report_data.get(type, [])
-            rows = []
+            rows: List[Dict[str, str]] = []
             if songs:
                 songs = sorted(songs, key=lambda song: song.name)
                 for song in songs:
@@ -139,7 +139,7 @@ class WeeklyHonor:
 
     @staticmethod
     def sort_files(path: Path) -> List[Tuple[Path, datetime]]:
-        files = []
+        files: List[Tuple[Path, datetime]] = []
         for file_path in sorted(path.glob("*.xlsx")):
             date_str = file_path.stem.split(" ")[-1] if " " in file_path.stem else file_path.stem
             date = datetime.strptime(date_str, "%Y-%m-%d")
@@ -152,7 +152,7 @@ class WeeklyHonor:
         df = pd.read_excel(file_path, engine='openpyxl')
         reqcols = ['name', 'title', 'bvid', 'author', 'pubdate']
         top = df.head(20).copy()
-        names = []
+        names: List[str] = []
         for index in top.index:
             name = top.loc[index, 'name']
             name = str(name).strip() if pd.notna(name) else ""
@@ -211,7 +211,7 @@ class WeeklyHonor:
                                 bvid = str(data.get('bvid', ''))
                                 author = str(data.get('author', ''))
                                 pubdate = data.get('pubdate')
-                                pubdate = pd.to_datetime(pubdate).strftime('%Y-%m-%d %H:%M:%S') if pd.notna(pubdate) else str(pubdate)
+                                pubdate: Optional[str] = pd.to_datetime(pubdate).strftime('%Y-%m-%d %H:%M:%S') if pd.notna(pubdate) else str(pubdate)
 
                         record = AchievedSong(name, period, type.value, title, bvid, author, pubdate)
                         report_data[type].append(record)

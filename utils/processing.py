@@ -1,18 +1,18 @@
 # utils/processing.py
 # 数据处理模块：视频数据的清洗、合并和评分计算
+from typing import Optional
 import pandas as pd
 from datetime import datetime
 from utils.calculator import calculate
 
 def process_records(
-    new_data,
-    old_data=None,
-    use_old_data=False,
-    use_collected=False,
-    collected_data=None,
-    ranking_type='daily',
-    old_time_toll=None
-):
+    new_data: pd.DataFrame,
+    old_data: Optional[pd.DataFrame] = None,
+    use_old_data: bool = False,
+    collected_data: Optional[pd.DataFrame] = None,
+    ranking_type: str = 'daily',
+    old_time_toll: Optional[str] = None
+) -> pd.DataFrame:
     """处理一批视频记录，根据新旧数据计算增量得分，并可选择性地合并收录信息。
 
     该函数是数据处理的核心，它遍历新数据中的每条记录，根据配置匹配旧数据
@@ -22,7 +22,6 @@ def process_records(
         new_data (pd.DataFrame): 新获取的视频数据。
         old_data (pd.DataFrame, optional): 上期数据，用于计算增量。
         use_old_data (bool): 是否使用上期数据进行对比。
-        use_collected (bool): 是否需要从收录列表中补充元数据。
         collected_data (pd.DataFrame, optional): 包含完整元数据的收录曲目列表。
         ranking_type (str): 榜单类型（'daily', 'weekly', etc.）。
         old_time_toll (str, optional): 旧数据时间阈值（格式：YYYYMMDD），用于过滤新曲。
@@ -46,19 +45,19 @@ def process_records(
         new = new_data[new_match].squeeze()
         
         # 如果需要，匹配并处理旧数据
-        old = None
-        if use_old_data:
+        old: Optional[pd.Series] = None
+        if use_old_data and old_data is not None :
             # 在旧数据中查找匹配的记录
             old_match = old_data['bvid'] == bvid
             if old_match.any(): old = old_data[old_match].squeeze()
-            else:
+            elif old_time_toll is not None:
                 # 对于旧数据中没有的视频，检查其发布时间
                 pubdate = datetime.strptime(new['pubdate'], "%Y-%m-%d %H:%M:%S")
                 threshold = datetime.strptime(old_time_toll, "%Y%m%d")
                 # 如果发布时间早于统计周期，则跳过 (属于更早的视频)
                 if pubdate < threshold: continue
                 # 周期内的新视频，则创建一个全为0的旧数据记录用于计算增量
-                old = {'view': 0, 'favorite': 0, 'coin': 0, 'like': 0}
+                old = pd.Series({'view': 0, 'favorite': 0, 'coin': 0, 'like': 0})
         
         # 需要通过收录曲目信息补充
         if collected_data is not None:
