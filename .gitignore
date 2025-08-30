@@ -8,7 +8,6 @@ __pycache__/
 !config/
 !src/
 !utils/
-*模块*
 *json*
 *萌百*
 *测试*
