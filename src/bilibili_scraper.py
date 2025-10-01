@@ -62,6 +62,7 @@ class SearchOptions:
 class SearchRestrictions:
     """B站搜索过滤条件配置类"""
     min_favorite: Optional[int] = None
+    min_view:Optional[int] = None
 
 @dataclass
 class Config:
@@ -337,10 +338,11 @@ class BilibiliScraper:
 
                         if self.search_restrictions:
                             # 如果满足 search_restrictions 设置的条件，立即结束
-                            # 此处一条一条检查结束条件
                             if self.search_restrictions.min_favorite and item['favorites'] < self.search_restrictions.min_favorite:
                                 return {'end': True, 'keyword': keyword, 'aids': temp_aids}
                             
+                            if self.search_restrictions.min_view and item['play'] < self.search_restrictions.min_view:
+                                return {'end': True, 'keyword': keyword, 'aids': temp_aids}
                         temp_aids.append(str(item['aid']))
                         logger.info(f"[分区 {search_options.video_zone_type}] 发现视频: {item['aid']} (关键词 {keyword} 第{keyword_pages[keyword]}页)")
                     

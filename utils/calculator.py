@@ -17,14 +17,14 @@ def calculate_scores(view: int, favorite: int, coin: int, like: int, copyright: 
         favorite: 收藏
         coin: 硬币
         like: 点赞
-        copyright: 版权类型(1,3为自制,2为转载)
+        copyright: 版权类型(1,101为自制,2为转载)
         ranking_type: 榜单类型（'daily', 'weekly', 'monthly', 'annual', 'special'）。
     
     Returns:
         tuple: (播放分,收藏分,硬币分,点赞分,修正系数A,修正系数B,修正系数C)
     """
     # 版权判定: 自制=1, 转载=2
-    copyright = 1 if copyright in [1, 3] else 2
+    copyright = 1 if copyright in [1, 3, 101] else 2
     # 特殊情况处理: 如果有其他互动但没有投币,虚设为1参与计算
     coin = 1 if (coin == 0 and view > 0 and favorite > 0 and like > 0) else coin  
     # 计算修正系数A(搬运稿硬币得分补偿)
