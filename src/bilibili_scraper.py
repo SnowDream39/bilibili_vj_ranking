@@ -38,6 +38,7 @@ class VideoInfo:
     coin: int = 0           # 硬币
     like: int = 0           # 点赞
     image_url: str = ""     # 封面URL
+    intro: str = ""         # 简介
     streak : int = 0        # 连续未达标次数
 
 @dataclass    
@@ -504,7 +505,8 @@ class BilibiliScraper:
                     favorite=info.get('cnt_info', {}).get('collect', 0),
                     coin=info.get('cnt_info', {}).get('coin', 0),
                     like=info.get('cnt_info', {}).get('thumb_up', 0),
-                    image_url=info.get('cover', '')
+                    image_url=info.get('cover', ''),
+                    intro=info.get('intro', '') if self.mode == "new" else ""
                 )
                 videos.append(video_info)
                 

@@ -2,11 +2,14 @@
 # IO工具模块，提供文件保存和数据格式化等通用功能。
 import pandas as pd
 from pathlib import Path
-from typing import Optional, List, Union
+from typing import Optional, List, Union, Dict
 from openpyxl.utils import get_column_letter
+from openpyxl.styles import PatternFill
 from utils.logger import logger
 
-def save_to_excel(df: pd.DataFrame, filename: Union[str, Path], usecols: Optional[List[str]] = None):
+def save_to_excel(df: pd.DataFrame, filename: Union[str, Path], 
+                  usecols: Optional[List[str]] = None, 
+                  row_styles: Optional[Dict[int, str]] = None): # 新增 row_styles 参数
     """
     保存DataFrame到Excel文件
        
@@ -14,16 +17,20 @@ def save_to_excel(df: pd.DataFrame, filename: Union[str, Path], usecols: Optiona
         df (pd.DataFrame): 要保存的DataFrame。
         filename (Union[str, Path]): 保存路径（字符串或Path对象）。
         usecols (Optional[List[str]], optional): 指定要保存的列名列表。
+        row_styles (Optional[Dict[int, str]], optional): 字典，键为DataFrame的行索引，值为颜色字符串（如'FFFF00'代表黄色，'ADD8E6'代表浅蓝色）。
     """
     if usecols:
-        # 仅保留在DataFrame中存在的指定列
         cols_to_save = [col for col in usecols if col in df.columns]
         df = df[cols_to_save].copy() 
+    else:
+        df = df.copy()
+
     try:
         # 将'aid'列转换为正整数的字符串格式，以防科学计数法
         if 'aid' in df.columns:
             df['aid'] = df['aid'].apply(lambda x: "{:.0f}".format(float(x)) if pd.notna(x) and str(x).strip() != '' else '')
 
+        df = format_columns(df)
         # 使用ExcelWriter写入数据并设置格式
         with pd.ExcelWriter(filename, engine='openpyxl') as writer:
             df.to_excel(writer, index=False, sheet_name='Sheet1')
@@ -46,7 +53,18 @@ def save_to_excel(df: pd.DataFrame, filename: Union[str, Path], usecols: Optiona
                     for cell in worksheet[aid_col_letter]:
                         cell.number_format = '@'
                         cell.alignment = cell.alignment.copy(horizontal='left')
-                    
+            
+            if row_styles:
+                for df_idx, color_hex in row_styles.items():
+                    if df_idx in df.index:
+                        excel_row_num = df.index.get_loc(df_idx) + 2
+                        
+                        fill = PatternFill(start_color=color_hex, end_color=color_hex, fill_type="solid")
+                        for cell in worksheet[excel_row_num]:
+                            cell.fill = fill
+                    else:
+                        logger.warning(f"尝试为DataFrame索引 {df_idx} 设置样式，但该索引不在当前DataFrame中。")
+
         logger.info(f"{filename} 保存完成")
     except Exception as e:
         logger.warning(f"Excel 保存失败：{e}")

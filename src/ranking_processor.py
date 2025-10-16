@@ -412,7 +412,7 @@ class RankingProcessor:
         # 读取新曲的日增数据和上一期的排名数据
         diff_file_path = self.config.get_path('diff_file', 'input_paths', **dates)
         previous_rank_path = self.config.get_path('previous_ranking', 'input_paths', **dates)
-        output_path = self.config.get_path('ranking', 'output_paths', **dates)
+        output_path = self.config.get_path('new', 'output_paths', **dates)
         new_ranking_df = pd.read_excel(diff_file_path)
         previous_ranking_df = pd.read_excel(previous_rank_path)
         # 只保留上一期排名的name和rank列

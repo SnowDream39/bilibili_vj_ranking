@@ -37,7 +37,7 @@
 			"point_before",
 			"rate"
 		],
-		"ranking": [
+		"old": [
 			"title",
 			"bvid",
 			"aid",
@@ -64,6 +64,35 @@
 			"fixC",
 			"point",
 			"image_url"
+		],
+		"new": [
+			"title",
+			"bvid",
+			"aid",
+			"name",
+			"author",
+			"uploader",
+			"copyright",
+			"synthesizer",
+			"vocal",
+			"type",
+			"pubdate",
+			"duration",
+			"page",
+			"view",
+			"favorite",
+			"coin",
+			"like",
+			"viewR",
+			"favoriteR",
+			"coinR",
+			"likeR",
+			"fixA",
+			"fixB",
+			"fixC",
+			"point",
+			"image_url",
+			"intro"
 		],
 		"new_ranking": [
 			"title",
@@ -118,6 +147,27 @@
 			"coin",
 			"like",
 			"image_url"
+		],
+		"new_stat": [
+			"title",
+			"bvid",
+			"aid",
+			"name",
+			"author",
+			"uploader",
+			"copyright",
+			"synthesizer",
+			"vocal",
+			"type",
+			"pubdate",
+			"duration",
+			"page",
+			"view",
+			"favorite",
+			"coin",
+			"like",
+			"image_url",
+			"intro"
 		],
 		"record": [
 			"title",

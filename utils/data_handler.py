@@ -56,7 +56,7 @@ class DataHandler:
         new_path = self.config.get_data_source_path('new_data', date=date)
         # 分别读取两个数据文件
         toll_data = self._read_excel(toll_path, usecols_key='stat')
-        new_data = self._read_excel(new_path, usecols_key='stat')
+        new_data = self._read_excel(new_path, usecols_key='new_stat')
 
         if not new_data.empty:
             # 如果新曲数据不为空，则进行合并

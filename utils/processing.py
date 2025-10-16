@@ -70,8 +70,8 @@ def process_records(
         
         # 调用计算模块获取得分和各项系数
         data = calculate(new, old, ranking_type)
-        # 构建结果字典并添加到列表中
-        result.append({
+        
+        record_dict = {
             'title': new['title'], 'bvid': bvid, 'aid': new['aid'], 'name': new['name'], 
             'author': new['author'], 'uploader': new['uploader'], 
             'copyright': new['copyright'], 'synthesizer': new['synthesizer'], 
@@ -84,6 +84,9 @@ def process_records(
             'fixA': f'{data[8]:.2f}', 'fixB': f'{data[9]:.2f}', 
             'fixC': f'{data[10]:.2f}', 'point': data[11], 
             'image_url': new['image_url']
-        })
-        
+        }
+        if 'intro' in new and pd.notna(new['intro']):
+            record_dict['intro'] = new['intro']
+
+        result.append(record_dict)
     return pd.DataFrame(result)

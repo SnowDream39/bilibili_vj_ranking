@@ -1,23 +1,16 @@
-# AI打标.py
-from datetime import datetime, timedelta
-import pandas as pd
-from utils.tagger import Tagger
-from utils.io_utils import save_to_excel, format_columns
-from utils.tagger import Tagger, ZJUConfig, CozeConfig
-import yaml
+#AI打标.py
+import asyncio
+from utils.ai_tagger import AITagger
+from utils.config_handler import ConfigHandler
 
-with open("config/ai.yaml", 'r', encoding='utf-8') as file:
-    config = yaml.safe_load(file)
-    config = CozeConfig(**config)
-    tagger = Tagger(config)
+async def main():
+    config_handler = ConfigHandler(period='ai_tagger')
+    dates = ConfigHandler.get_daily_dates() 
+    input_file = config_handler.get_path('new_song_diff', 'input_paths', **dates)
+    output_file = config_handler.get_path('tagged_output', 'output_paths', new_date=dates['new_date'])
+    tagger = AITagger(input_file=input_file, output_file=output_file, config_handler=config_handler)
+    await tagger.run()
 
-today = (datetime.now()-timedelta(days=1)).replace(hour=0, minute=0,second=0,microsecond=0).strftime('%Y%m%d')
-old_time = datetime.strptime(str(today), '%Y%m%d').strftime('%Y%m%d')
-new_time = (datetime.strptime(str(today), '%Y%m%d') + timedelta(days=1)).strftime('%Y%m%d') 
-file_name = f"差异/新曲/新曲{new_time}与新曲{old_time}"
+if __name__ == "__main__":
+    asyncio.run(main())
 
-songs_data = pd.read_excel(f"{file_name}.xlsx", dtype={'name': str, 'type':str, 'author':str, 'synthesizer': str ,'vocal': str})
-
-tagger.tagging(songs_data)
-
-save_to_excel(format_columns(songs_data), f"{file_name}.xlsx")

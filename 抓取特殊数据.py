@@ -21,7 +21,7 @@ config = Config(
 )
 
 restrictions = SearchRestrictions(
-    min_favorite= 10000,
+    min_view = 50000,
 )
 
 search_options = [SearchOptions(
