@@ -57,7 +57,7 @@ class SearchOptions:
     order_sort: Optional[int] = None
     time_start: Optional[str] = None
     time_end: Optional[str] = None
-    page_size: Optional[int] = 30
+    page_size: Optional[int] = 50
 
 @dataclass
 class SearchRestrictions:
@@ -241,7 +241,7 @@ class BilibiliScraper:
             time_start= search_options.time_start,
             time_end= search_options.time_end,
             page=page,
-            page_size= search_options.page_size or 30
+            page_size= search_options.page_size or 50
         )
 
     async def get_video_list_by_zone(self, rid: int = 30, ps: int = 50) -> List[str]:
@@ -332,7 +332,7 @@ class BilibiliScraper:
                         return {'end': True, 'keyword': keyword, 'aids': []}
                     
                     videos = result.get('result', [])
-                    end = not videos or len(videos) < (search_options.page_size or 30)
+                    end = not videos or len(videos) < (search_options.page_size or 50)
 
                     temp_aids = []
                     for item in videos:

@@ -37,7 +37,7 @@ def get_videos(time_from, time_to, existing_bvids, max_retries=5):
         'order': 'click',
         'cate_id': cate_id,
         'page': '1',
-        'pagesize': '30',
+        'pagesize': '50',
         'time_from': time_from,
         'time_to': time_to
     }
