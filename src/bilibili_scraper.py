@@ -77,7 +77,7 @@ class Config:
     MAX_RETRIES: int = 5                # 最大重试次数
     SEMAPHORE_LIMIT: int = 5            # 并发请求限制
     MIN_VIDEO_DURATION: int = 20        # 最小视频时长(秒)
-    SLEEP_TIME: float = 0.8             # 请求间隔时间(秒)
+    SLEEP_TIME: float = 0.2             # 请求间隔时间(秒)
     OUTPUT_DIR: Path = Path("新曲数据")  # 输出目录
     NAME: Optional[str] = None          # 特刊名称(如果有)
     STREAK_THRESHOLD : int = 7          # 连续未达标次数阈值
@@ -371,7 +371,7 @@ class BilibiliScraper:
                 remaining_keywords = [k for k in active_keywords if k not in current_batch]
                 active_keywords = remaining_keywords + [k for k in current_batch if k in active_keywords]
 
-            await asyncio.sleep(self.config.SLEEP_TIME * 2)
+            await asyncio.sleep(1.5)
 
         return list(set(aids))
     
@@ -443,6 +443,41 @@ class BilibiliScraper:
             aids.update(await self.get_video_list_by_zone())
         return list(set(aids))  
     
+    async def fetch_video_details_from_api(self, aids: List[str]) -> List[Dict[str, Any]]:
+        """
+        API数据获取器。根据aid列表从B站API获取原始的数据。
+        """
+        int_aids = [int(aid) for aid in aids if aid and aid.isdigit()]
+        if not int_aids:
+            return []
+        
+        stats = await self.get_batch_details_by_aid(int_aids)
+        
+        videos_data = []
+        for aid, info in stats.items():
+            if info.get('title', '') == "已失效视频":
+                logger.warning(f"视频 av{aid} 已失效，跳过。")
+                continue
+            
+            video_dict = {
+                'bvid': info.get('bvid', ''),
+                'aid': str(aid),
+                'title': clean_tags(info.get('title', '')),
+                'uploader': info.get('upper', {}).get('name', ''),
+                'copyright': info.get('copyright', 1),
+                'pubdate': datetime.fromtimestamp(info.get('pubtime', 0)).strftime('%Y-%m-%d %H:%M:%S'),
+                'duration': convert_duration(info.get('duration', 0)),
+                'page': info.get('page', 1),
+                'view': info.get('cnt_info', {}).get('play', 0),
+                'favorite': info.get('cnt_info', {}).get('collect', 0),
+                'coin': info.get('cnt_info', {}).get('coin', 0),
+                'like': info.get('cnt_info', {}).get('thumb_up', 0),
+                'image_url': info.get('cover', ''),
+                'intro': info.get('intro', '')
+            }
+            videos_data.append(video_dict)
+        return videos_data
+
     async def get_video_details(self, aids: List[str]) -> List[VideoInfo]:
         """
         根据aid列表，批量获取并构建视频详细信息对象列表。
@@ -453,66 +488,40 @@ class BilibiliScraper:
         Returns:
             成功获取的VideoInfo对象列表。
         """
-        int_aids = [int(aid) for aid in aids if aid and aid.isdigit()]
-        if not int_aids:
+        api_videos_data = await self.fetch_video_details_from_api(aids)
+        if not api_videos_data:
             return []
-            
-        need_extra = self.mode in ["new", "special"]
-        stats = await self.get_batch_details_by_aid(int_aids, need_extra=need_extra)
-        
+        api_data_map = {v['aid']: v for v in api_videos_data}
+
         videos: List[VideoInfo] = []
-        for aid, info in stats.items():
+        if self.mode == "old":
+            songs_by_aid = self.songs.set_index('aid')
+            LOCAL_METADATA_FIELDS = [
+                'bvid', 'name', 'author', 'copyright',
+                'synthesizer', 'vocal', 'type'
+            ]
+        for aid_str, info in api_data_map.items():
             try:
-                title = clean_tags(info.get('title', ''))
-                if title == "已失效视频":
-                    raise VideoInvalidException(f"视频 {aid} 已失效。")
-                
-                # 'old' 模式下，从已有的表格中读取部分不会改变或需要保留的元数据
-                existing_data = {}
                 if self.mode == "old":
-                    song_data = self.songs[self.songs['aid'] == str(aid)].iloc[0]
-                    existing_data = {
-                        'bvid': song_data['bvid'],   
-                        'aid': str(aid),
-                        'name': song_data['name'],
-                        # 版权信息优先使用API获取的，除非已有数据不是1或2
-                        'copyright': song_data['copyright'] if song_data['copyright'] not in [1, 2] else info.get('copyright', 1),
-                        'author': song_data['author'],
-                        'synthesizer': song_data['synthesizer'],
-                        'vocal': song_data['vocal'],
-                        'type': song_data['type']
-                    }
-                # 使用解包语法创建VideoInfo对象
-                # 如果是'old'模式，使用existing_data填充；否则，直接从API数据构建
-                video_info = VideoInfo(
-                    **existing_data if self.mode == "old" else {
-                        'bvid': info.get('bvid', ''),
-                        'aid': str(aid),
-                        'name': clean_tags(info.get('title', '')),
-                        'copyright': info.get('copyright', 1),
-                        'author': info.get('upper', {}).get('name', ''),
-                        'synthesizer': "",
-                        'vocal': "",
-                        'type': "",
-                    },
-                    # 以下是所有模式都需要从API更新的数据
-                    pubdate=datetime.fromtimestamp(info.get('pubtime', 0)).strftime('%Y-%m-%d %H:%M:%S'),
-                    title=title,
-                    uploader=info.get('upper', {}).get('name', ''),
-                    duration=convert_duration(info.get('duration', 0)),
-                    page=info.get('page', 1),
-                    view=info.get('cnt_info', {}).get('play', 0),
-                    favorite=info.get('cnt_info', {}).get('collect', 0),
-                    coin=info.get('cnt_info', {}).get('coin', 0),
-                    like=info.get('cnt_info', {}).get('thumb_up', 0),
-                    image_url=info.get('cover', ''),
-                    intro=info.get('intro', '') if self.mode == "new" else ""
-                )
+                    local_data = songs_by_aid.loc[aid_str, LOCAL_METADATA_FIELDS].to_dict()
+                    if local_data.get('copyright') not in [100, 101]:
+                        local_data['copyright'] = info.get('copyright')
+                    video_info = VideoInfo(**{
+                        **info, 
+                        **local_data
+                    })
+                else: # "new" or "special"
+                    video_info = VideoInfo(
+                        name=info.get('title', ''),
+                        author=info.get('uploader', ''),
+                        synthesizer="",
+                        vocal="",
+                        type="",
+                        **info
+                    )
                 videos.append(video_info)
-                
             except Exception as e:
-                logger.error(f"处理视频 {aid} 信息时出错: {e}")
-                
+                logger.error(f"处理视频 {aid_str} 信息时出错: {e}")
         return videos
 
     def update_recorded_songs(self, videos: List[VideoInfo], census_mode: bool):

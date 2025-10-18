@@ -91,4 +91,4 @@ ai_tagger:
   input_paths:
     new_song_diff: "差异/新曲/新曲{new_date}与新曲{old_date}.xlsx"
   output_paths:
-    tagged_output: "差异/新曲/新曲{new_date}与新曲{old_date}.xlsx"
+    tagged_output: "差异/新曲/新曲{new_date}与新曲{old_date}AI.xlsx"

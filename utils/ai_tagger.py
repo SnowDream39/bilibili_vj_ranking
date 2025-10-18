@@ -1,20 +1,17 @@
-# src/ai_tagger.py
+# utils/ai_tagger.py
 import asyncio
 import pandas as pd
 import json
 import re
 import yaml
-from openai import AsyncOpenAI, APIStatusError
+from openai import AsyncOpenAI, Timeout 
 from pathlib import Path
 from utils.logger import logger
-from typing import List, Dict, Set, Tuple 
+from typing import List, Dict, Set, Tuple, Optional
 from utils.data_handler import DataHandler
 from utils.config_handler import ConfigHandler
 from utils.io_utils import save_to_excel 
 
-BATCH_SIZE = 20
-MAX_RETRIES = 5
-INITIAL_DELAY = 5
 COLOR_YELLOW = 'FFFF00' # 黄色，用于AI收录的歌曲
 COLOR_LIGHT_BLUE = 'ADD8E6' # 浅蓝色，用于预先已标注的歌曲
 
@@ -28,75 +25,61 @@ class AITagger:
         
         try:
             with open("config/ai.yaml", "r", encoding="utf-8") as f:
-                api_config = yaml.safe_load(f)
+                cfg = yaml.safe_load(f)
         except FileNotFoundError:
             logger.error("配置文件 config/ai.yaml 未找到！")
             raise
 
-        api_key = api_config.get("API_KEY")
-        base_url = api_config.get("API_URL")
-        self.model_name = api_config.get("API_MODEL")
+        self.model_name = cfg.get("API_MODEL")
+        self.batch_size = cfg.get("BATCH_SIZE", 15) 
+        self.max_concurrency = cfg.get("MAX_CONCURRENCY", 3) 
 
-        if not all([api_key, base_url, self.model_name]):
-            raise ValueError("请在 config/ai.yaml 中正确设置 API_KEY, API_URL, 和 API_MODEL")
+        self.client = AsyncOpenAI(
+            base_url=cfg.get("API_URL"), 
+            api_key=cfg.get("API_KEY"), 
+            timeout=Timeout(100.0)
+        )
+        self.semaphore = asyncio.Semaphore(self.max_concurrency)
 
-        self.client = AsyncOpenAI(base_url=base_url, api_key=api_key)
-        
-        self.known_synthesizers, self.known_vocals = self._load_known_tags()
-        self.prompt_template = self._load_prompt_template()
-        self.sem = asyncio.Semaphore(5)
+        synthesizers, vocals = self._load_known_tags()
+        self.prompt_template = self._load_prompt_template(synthesizers, vocals)
+
+    def _extract_tags(self, series: pd.Series) -> Set[str]:
+        tags = set()
+        for item in series.dropna().astype(str):
+            tags.update(tag.strip() for tag in item.split('、') if tag.strip())
+        return tags
 
     def _load_known_tags(self) -> Tuple[Set[str], Set[str]]:
         """从 '收录曲目.xlsx' 加载已知列表。"""
         data_handler = DataHandler(self.config_handler) 
-        collected_songs_path = Path("收录曲目.xlsx") 
-        
-        if not collected_songs_path.exists():
-            raise FileNotFoundError(f"错误：收录曲目文件 '{collected_songs_path}' 不存在。")
-
         try:
-            collected_df = data_handler._read_excel(collected_songs_path, usecols_key='collected')
-            
-            synthesizers = set()
-            vocals = set()
-
-            if 'synthesizer' in collected_df.columns:
-                for s in collected_df['synthesizer'].dropna().astype(str):
-                    synthesizers.update(s.split('、')) 
-            
-            if 'vocal' in collected_df.columns:
-                for v in collected_df['vocal'].dropna().astype(str):
-                    vocals.update(v.split('、')) 
-            
-            synthesizers = {s.strip() for s in synthesizers if s.strip()}
-            vocals = {v.strip() for v in vocals if v.strip()}
-
-            logger.info(f"已加载 {len(synthesizers)} 个已知引擎和 {len(vocals)} 个已知歌手。")
+            df = data_handler._read_excel(Path("收录曲目.xlsx"), usecols_key='record')
+            synthesizers = self._extract_tags(df['synthesizer']) if 'synthesizer' in df.columns else set()
+            vocals = self._extract_tags(df['vocal']) if 'vocal' in df.columns else set()
             return synthesizers, vocals
+        except FileNotFoundError:
+            logger.error("错误：收录曲目文件 '收录曲目.xlsx' 不存在。")
+            raise
         except Exception as e:
+            logger.error(f"加载已知标签时出错: {e}")
             raise
 
-    def _load_prompt_template(self) -> str:
+    def _load_prompt_template(self, synthesizers: Set[str], vocals: Set[str]) -> str:
         """从文件加载提示词模板，并用已知标签列表格式化。"""
         try:
             with open("config/prompt_template.txt", "r", encoding="utf-8") as f:
                 template = f.read()
-            
-            known_synthesizers_str = "\n".join(sorted(list(self.known_synthesizers))) if self.known_synthesizers else "无"
-            known_vocals_str = "\n".join(sorted(list(self.known_vocals))) if self.known_vocals else "无"
-
             return template.format(
-                known_synthesizers=known_synthesizers_str,
-                known_vocals=known_vocals_str
+                known_synthesizers="\n".join(sorted(synthesizers)) or "无",
+                known_vocals="\n".join(sorted(vocals)) or "无"
             )
-        except FileNotFoundError:
-            raise
-        except KeyError as e:
-            logger.error(f"提示词模板缺少占位符: {e}。请检查 prompt_template.txt。")
+        except (FileNotFoundError, KeyError) as e:
+            logger.error(f"加载或格式化Prompt模板时出错: {e}")
             raise
 
-    def _parse_json_from_response(self, text: str) -> dict:
-        """从AI响应中提取JSON。如果无法提取，则报错。"""
+    def _parse_json_from_response(self, text: str) -> Optional[dict]:
+        """从AI响应中提取JSON。"""
         try:
             return json.loads(text)
         except json.JSONDecodeError:
@@ -105,157 +88,106 @@ class AITagger:
                 try:
                     return json.loads(match.group(0))
                 except json.JSONDecodeError:
-                    logger.error("AI响应中包含JSON，但解析失败。")
-                    raise ValueError("无法从AI响应中解析有效JSON。")
-            else:
-                logger.error("AI响应中未找到有效的JSON结构。")
-                raise ValueError("AI响应中未找到有效的JSON结构。")
+                    pass
+        logger.error("无法从AI响应中解析有效JSON。")
+        return None
 
-    async def _get_ai_tags_batch(self, videos_batch: List[Dict]) -> List[Dict]:
+    async def _get_ai_tags_batch(self, batch_data: List[Dict]) -> Optional[List[Dict]]:
         """为一批视频调用AI API获取标注结果。"""
-        input_data = {
-            "videos": [
-                {
-                    "title": v.get('title', ''),
-                    "uploader": v.get('uploader', ''),
-                    "intro": str(v.get('intro', ''))[:1000],
-                    "bvid": v.get('bvid', '') 
-                }
-                for v in videos_batch
-            ]
-        }
-        
-        user_message_content = json.dumps(input_data, ensure_ascii=False)
-        
-        retries = 0
-        current_delay = INITIAL_DELAY
-        
-        while retries < MAX_RETRIES:
+        user_content = json.dumps({"videos": batch_data}, ensure_ascii=False) 
+        async with self.semaphore:
             try:
-                async with self.sem:
-                    response = await self.client.chat.completions.create(
-                        model=self.model_name,
-                        messages=[
-                            {"role": "system", "content": self.prompt_template},
-                            {"role": "user", "content": user_message_content}
-                        ],
-                        response_format={"type": "json_object"},
-                        temperature=0.2,
-                    )
-                    content = response.choices[0].message.content
-                    parsed_json = self._parse_json_from_response(content)
-                    results = parsed_json.get("results", [])
+                response = await self.client.chat.completions.create(
+                    model=self.model_name,
+                    messages=[
+                        {"role": "system", "content": self.prompt_template},
+                        {"role": "user", "content": user_content}
+                    ],
+                    response_format={"type": "json_object"}, temperature=0.2,
+                )
+                parsed_json = self._parse_json_from_response(response.choices[0].message.content)
+                if not parsed_json:
+                    return None
 
-                    if len(results) != len(videos_batch):
-                        raise ValueError(
-                            f"AI返回结果数量 ({len(results)}) 与请求数量 ({len(videos_batch)}) 不匹配。"
-                            f"批次首个bvid: {videos_batch[0].get('bvid', 'N/A')}。"
-                        )
-                    
+                results = parsed_json.get("results", [])
+                if len(results) == len(batch_data):
                     return results
-
-            except APIStatusError as e:
-                if e.status_code == 429:
-                    logger.warning(
-                        f"API速率限制 (429) 达到，将在 {current_delay} 秒后重试... (重试次数: {retries + 1}/{MAX_RETRIES})"
-                    )
-                    retries += 1
-                    await asyncio.sleep(current_delay)
-                    current_delay *= 2
                 else:
-                    logger.error(f"AI API调用失败 (状态码: {e.status_code})。")
-                    raise e 
+                    logger.error(f"批次返回结果数({len(results)})与请求数({len(batch_data)})不匹配。")
+                    return None
             except Exception as e:
-                logger.error(f"AI API调用发生未知错误: {e}")
-                raise e 
-        
-        logger.error(f"AI API调用在 {MAX_RETRIES} 次重试后仍然失败。")
-        raise ConnectionError("AI API调用重试次数耗尽，未能成功获取结果。")
-
-    async def _process_batch_task(self, df_chunk: pd.DataFrame) -> List[Dict]:
-        """处理一个DataFrame块的异步任务。"""
-        videos_data = df_chunk.to_dict('records')
-        ai_results = await self._get_ai_tags_batch(videos_data)
-        return ai_results
-
+                logger.error(f"批次API调用异常: {e}")
+                return None 
+            
     def _prepare_dataframe(self) -> Tuple[pd.DataFrame, pd.DataFrame, Dict[int, str]]:
-        """
-        读取Excel，处理列类型，分割已标注和待处理数据，并初始化行样式。
-        返回：(原始DataFrame, 待AI处理的DataFrame, 行样式字典)
-        """
-        logger.info(f"正在读取文件: {self.input_file.name}")
+        """读取并准备DataFrame。"""
         df = pd.read_excel(self.input_file)
-        
         required_cols = ['synthesizer', 'vocal', 'type']
         for col in required_cols:
-            df[col] = df.get(col, pd.NA).astype(object)
-
-        row_styles: Dict[int, str] = {}
-
-        already_tagged_mask = df[required_cols].notna().all(axis=1)
-        df_already_tagged = df[already_tagged_mask]
-        df_to_process = df[~already_tagged_mask].copy()
-
-        logger.info(f"总计 {len(df)} 首歌曲。已标注 {len(df_already_tagged)} 首，待AI处理 {len(df_to_process)} 首。")
-
-        for original_idx in df_already_tagged.index:
-            row_styles[original_idx] = COLOR_LIGHT_BLUE
-            
+            if col not in df.columns:
+                df[col] = pd.NA
+            df[col] = df[col].astype(object)
+        row_styles = {}
+        tagged_mask = df[required_cols].notna().all(axis=1)
+        for idx in df[tagged_mask].index:
+            row_styles[idx] = COLOR_LIGHT_BLUE
+        df_to_process = df[~tagged_mask].copy()
+        logger.info(f"总计 {len(df)} 首。已标注 {len(df) - len(df_to_process)} 首，待处理 {len(df_to_process)} 首。")
         return df, df_to_process, row_styles
 
-    async def _process_untagged_data(self, df_to_process: pd.DataFrame) -> List[Dict]:
-        """
-        创建并执行AI批处理任务，并收集AI结果。
-        返回：所有AI处理结果的列表。
-        """
-        if df_to_process.empty:
-            return []
-
-        tasks = []
-        for i in range(0, len(df_to_process), BATCH_SIZE):
-            df_chunk = df_to_process.iloc[i:i + BATCH_SIZE]
-            tasks.append(self._process_batch_task(df_chunk))
-        
-        all_ai_results = await asyncio.gather(*tasks)
-        return [item for sublist in all_ai_results for item in sublist]
-
-    def _apply_ai_results(self, df: pd.DataFrame, df_to_process: pd.DataFrame, 
-                          all_ai_results: List[Dict], row_styles: Dict[int, str]):
-        """
-        将AI返回的结果应用回主DataFrame，并更新行样式。
-        """
+    def _apply_batch_results(self, df: pd.DataFrame, chunk_indices: pd.Index, results: List[Dict], styles: Dict[int, str]):
         required_cols = ['synthesizer', 'vocal', 'type']
-
-        if len(all_ai_results) != len(df_to_process):
-             raise ValueError("AI结果数量与待处理歌曲总数不匹配，数据更新可能不准确。")
-
-        for index_in_processed_df, ai_result in enumerate(all_ai_results):
-            original_index = df_to_process.iloc[index_in_processed_df].name 
-            
-            if ai_result.get('include'):
-                tags = ai_result.get('tags', {})
+        for idx, res in zip(chunk_indices, results):
+            if res.get('include'):
+                tags = res.get('tags', {})
                 for key, value in tags.items():
                     if key in df.columns:
-                        df.at[original_index, key] = value
-                row_styles[original_index] = COLOR_YELLOW 
+                        df.at[idx, key] = value
+                styles[idx] = COLOR_YELLOW 
             else:
                 for col in required_cols:
-                    df.at[original_index, col] = pd.NA 
+                    df.at[idx, col] = pd.NA
+
+    async def _process_chunk(self, chunk: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[List[Dict]]]:
+        """执行API调用并返回原始chunk及其结果。"""
+        results = await self._get_ai_tags_batch(chunk.to_dict('records'))
+        return chunk, results
 
     async def run(self):
-        """执行完整的AI标注流程。"""
-        if not self.input_file.exists():
-            raise FileNotFoundError(f"输入文件不存在: {self.input_file.name}")
-
-        df, df_to_process, row_styles = self._prepare_dataframe()
-
-        if df_to_process.empty:
-            save_to_excel(df, self.output_file, row_styles=row_styles)
+        """执行完整的AI标注流程，并实时保存进度。"""
+        try:
+            df, to_process, styles = self._prepare_dataframe()
+        except FileNotFoundError:
+            logger.error(f"输入文件不存在: {self.input_file}")
             return
 
-        logger.info(f"开始AI处理 {len(df_to_process)} 首待标注歌曲...")
-        all_ai_results = await self._process_untagged_data(df_to_process)
+        if to_process.empty:
+            logger.info("没有需要AI处理的歌曲。")
+            save_to_excel(df, self.output_file, row_styles=styles)
+            return
 
-        self._apply_ai_results(df, df_to_process, all_ai_results, row_styles)
-        save_to_excel(df, self.output_file, row_styles=row_styles)
+        save_to_excel(df, self.output_file, row_styles=styles)
 
+        chunks = [to_process.iloc[i:i + self.batch_size] for i in range(0, len(to_process), self.batch_size)]
+        total = len(chunks)
+        logger.info(f"准备开始AI处理 {len(to_process)} 首歌曲，共分为 {total} 个批次...")
+
+        tasks = [self._process_chunk(chunk) for chunk in chunks]
+        
+        completed, failed = 0, 0
+
+        for future in asyncio.as_completed(tasks):
+            processed_count = completed + failed + 1
+            try:
+                chunk, results = await future
+                if results:
+                    self._apply_batch_results(df, chunk.index, results, styles)
+                    completed += 1
+                    logger.info(f"批次 {processed_count}/{total} 成功.")
+                else:
+                    failed += 1
+                    logger.warning(f"批次 {processed_count}/{total} 失败 (API返回空或格式错误).")
+            except Exception as e:
+                failed += 1
+                logger.error(f"批次 {processed_count}/{total} 失败 (异常: {e}).")
+            save_to_excel(df, self.output_file, row_styles=styles)
