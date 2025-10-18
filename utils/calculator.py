@@ -23,6 +23,7 @@ def calculate_scores(view: int, favorite: int, coin: int, like: int, copyright: 
     Returns:
         tuple: (播放分,收藏分,硬币分,点赞分,修正系数A,修正系数B,修正系数C)
     """
+    viewR, favoriteR, coinR, likeR, fixA, fixB, fixC = (0.0,) * 7
     # 版权判定: 自制=1, 转载=2
     copyright = 1 if copyright in [1, 3, 101] else 2
     # 特殊情况处理: 如果有其他互动但没有投币,虚设为1参与计算

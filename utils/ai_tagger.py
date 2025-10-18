@@ -105,7 +105,12 @@ class AITagger:
                     ],
                     response_format={"type": "json_object"}, temperature=0.2,
                 )
-                parsed_json = self._parse_json_from_response(response.choices[0].message.content)
+
+                message_content = response.choices[0].message.content
+                if message_content is None:
+                    return None
+                
+                parsed_json = self._parse_json_from_response(message_content)
                 if not parsed_json:
                     return None
 

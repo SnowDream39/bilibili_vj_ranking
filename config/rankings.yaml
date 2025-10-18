@@ -14,7 +14,12 @@ weekly:
   output_paths:
     toll_ranking: "周刊/总榜/{target_date}.xlsx"
     new_ranking: "周刊/新曲榜/新曲{target_date}.xlsx"
-
+  new_ranking_rules:
+    start_date_offset_days: 7
+    on_board_condition:
+      column: "count"
+      operator: ">"
+      value: 0
 # 月刊
 monthly:
   ranking_type: "monthly"
