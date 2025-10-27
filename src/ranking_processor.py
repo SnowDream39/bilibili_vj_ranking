@@ -3,6 +3,7 @@ import asyncio
 import pandas as pd
 from datetime import datetime, timedelta
 
+from utils.logger import logger
 from utils.config_handler import ConfigHandler
 from utils.data_handler import DataHandler
 from utils.calculator import calculate_ranks, merge_duplicate_names, update_rank_and_rate, update_count
@@ -65,7 +66,7 @@ class RankingProcessor:
         
         # 根据配置，更新上榜次数、排名及升降浮动
         update_opts = self.config.config.get('update_options', {})
-        if update_opts:
+        if update_opts and any(update_opts.values()):
             previous_report_path = self.config.get_path('toll_ranking', 'output_paths', target_date=dates['previous_date'])
             if update_opts.get('count'):
                 toll_ranking = update_count(toll_ranking, previous_report_path)
@@ -115,17 +116,12 @@ class RankingProcessor:
     def run_combination(self):
         """执行每日数据的合并与更新流程。"""
         dates = self.config.get_daily_new_song_dates()
-        
-        # 1. 加载并合并主榜和新曲榜的日增数据
         raw_combined_df = self._load_and_combine_diffs(dates)
-        
-        # 2. 更新收录曲目列表，将新出现的歌曲添加进去
-        updated_collected_df = self._update_collected_songs(raw_combined_df)
-        
-        # 3. 处理并保存合并后的总榜
+        collected_path = self.config.get_path('collected_songs', 'input_paths')
+        existing_collected_df = pd.read_excel(collected_path)
+        raw_combined_df = self._resolve_name_conflicts(raw_combined_df, existing_collected_df)
+        updated_collected_df = self._update_collected_songs(raw_combined_df, existing_collected_df)
         self._process_and_save_combined_ranking(raw_combined_df, dates)
-        
-        # 4. 将新曲数据合并到主数据文件，为下一天的计算做准备
         self._update_master_data_for_next_day(dates, updated_collected_df)
 
     def _load_and_combine_diffs(self, dates: dict) -> pd.DataFrame:
@@ -135,28 +131,83 @@ class RankingProcessor:
         df_main_diff = pd.read_excel(main_diff_path)
         df_new_song_diff = pd.read_excel(new_song_diff_path)
         
-        # 合并主榜和新曲榜的日增数据
-        combined_df = pd.concat([df_main_diff, df_new_song_diff], ignore_index=True)
-        # 通过bvid去重，保留最后出现的一条（即新曲榜中的数据，以防重复）
-        return combined_df.drop_duplicates(subset=['bvid'], keep='last')
+        merged_df = pd.merge(df_new_song_diff, df_main_diff, on='bvid', how='outer', suffixes=('_new', '_main'))
+        all_cols = df_main_diff.columns.union(df_new_song_diff.columns).drop('bvid')
+        for col in all_cols:
+            new_col = f"{col}_new"
+            main_col = f"{col}_main"
 
-    def _update_collected_songs(self, df: pd.DataFrame) -> pd.DataFrame:
+            if new_col in merged_df.columns and main_col in merged_df.columns:
+                merged_df[col] = merged_df[new_col].combine_first(merged_df[main_col])
+                merged_df.drop(columns=[new_col, main_col], inplace=True)
+            
+            elif new_col in merged_df.columns:
+                merged_df.rename(columns={new_col: col}, inplace=True)
+            
+            elif main_col in merged_df.columns:
+                merged_df.rename(columns={main_col: col}, inplace=True)
+        
+        final_cols_order = ['bvid'] + [col for col in df_main_diff.columns if col != 'bvid' and col in merged_df.columns]
+        final_cols_order += [col for col in df_new_song_diff.columns if col not in final_cols_order and col in merged_df.columns]
+        return merged_df[final_cols_order]
+
+    def _resolve_name_conflicts(self, df_to_check: pd.DataFrame, collected_df: pd.DataFrame) -> pd.DataFrame:
+        """
+        检查并解决同名但作者不同的歌曲冲突。
+        
+        Args:
+            df_to_check (pd.DataFrame): 待检查的DataFrame（通常是日增数据）。
+            collected_df (pd.DataFrame): 权威的收录曲目DataFrame。
+
+        Returns:
+            pd.DataFrame: 处理完名称冲突后的DataFrame。
+        """
+        author_map = collected_df.drop_duplicates(subset=['name'], keep='first').set_index('name')['author'].to_dict()
+
+        def get_new_name(row):
+            """应用于每一行的逻辑函数"""
+            name = row['name']
+            author = row['author']
+            if name in author_map and str(author_map[name]).strip().lower() != str(author).strip().lower():
+                new_name = f"{name}({author})"
+                logger.info(f"检测到同名冲突: 原名='{name}', 作者='{author}' (收录作者='{author_map[name]}')。重命名为: '{new_name}'")
+                return new_name
+            return name
+
+        df_to_check.loc[:, 'name'] = df_to_check.apply(get_new_name, axis=1)
+        
+        return df_to_check
+    
+    def _update_collected_songs(self, df: pd.DataFrame, existing_collected_df: pd.DataFrame = None) -> pd.DataFrame:
         """更新收录曲目列表。"""
-        collected_path = self.config.get_path('collected_songs', 'input_paths')
-        existing_collected_df = pd.read_excel(collected_path)
+        if existing_collected_df is None:
+            collected_path = self.config.get_path('collected_songs', 'input_paths')
+            existing_collected_df = pd.read_excel(collected_path)
+        metadata_cols = self.data_handler.usecols.get('metadata_update_cols', [])
+        latest_metadata = df[['bvid'] + [col for col in metadata_cols if col in df.columns]].copy()
+        latest_metadata = latest_metadata.drop_duplicates(subset=['bvid'], keep='last')
         
-        selected_cols = self.data_handler.usecols['combination_input']
-        df_selected = df[selected_cols].copy()
-        df_selected['streak'] = 0
+        existing_collected_df.set_index('bvid', inplace=True)
+        latest_metadata.set_index('bvid', inplace=True)
+        existing_collected_df.update(latest_metadata)
+        existing_collected_df.reset_index(inplace=True)
+        new_songs_bvid = df[~df['bvid'].isin(existing_collected_df['bvid'])]['bvid'].unique()
         
-        # 从日增数据中筛选出尚未收录的新曲
-        new_songs = df_selected[~df_selected['bvid'].isin(existing_collected_df['bvid'])]
-        updated_df = pd.concat([existing_collected_df, new_songs], ignore_index=True)
-        
-        output_path = self.config.get_path('collected_songs', 'output_paths')
-        self.data_handler.save_df(updated_df, output_path)
-        return updated_df
+        if len(new_songs_bvid) > 0:
+            record_cols = self.data_handler.usecols.get('record', [])
+            new_songs_df = df[df['bvid'].isin(new_songs_bvid)].copy()
+            new_songs_df = new_songs_df.drop_duplicates(subset=['bvid'], keep='last')
+            new_songs_df['streak'] = 0
+            new_songs_to_add = new_songs_df[[col for col in record_cols if col in new_songs_df.columns]]
+            
+            updated_df = pd.concat([existing_collected_df, new_songs_to_add], ignore_index=True)
+        else:
+            updated_df = existing_collected_df
 
+        output_path = self.config.get_path('collected_songs', 'output_paths')
+        self.data_handler.save_df(updated_df, output_path, 'record')
+        return updated_df
+    
     def _process_and_save_combined_ranking(self, df: pd.DataFrame, dates: dict):
         """处理合并榜单的排名、在榜次数等并保存。"""
         merged_df = merge_duplicate_names(df)
@@ -177,17 +228,21 @@ class RankingProcessor:
         df_main = pd.read_excel(main_data_path)
         df_new_song = pd.read_excel(new_song_data_path)
         
-        merged_new = df_new_song.merge(df_collected, on='bvid', suffixes=('', '_y'))
-        # 将新曲数据格式化，以匹配主数据文件（旧曲）的列结构
-        selected_cols = self.data_handler.usecols['rename']
-        cols_map = self.data_handler.maps['rename_map']
-        df_promoted = merged_new[selected_cols].rename(columns=cols_map)
+        promotable_songs = pd.merge(df_new_song, df_collected[['bvid']], on='bvid', how='inner')
+        stat_cols = self.data_handler.usecols.get('stat', [])
+        df_promoted = promotable_songs[[col for col in stat_cols if col in promotable_songs.columns]].copy()
         
-        # 将格式化后的新曲数据追加到主数据文件，并去重，为第二天计算做准备
-        updated_main_df = pd.concat([df_main, df_promoted], ignore_index=True).drop_duplicates(subset=['bvid'], keep='last')
-        
+        updated_main_df = pd.concat([df_main, df_promoted], ignore_index=True)
+        updated_main_df = updated_main_df.drop_duplicates(subset=['bvid'], keep='last').reset_index(drop=True)
+        update_cols = self.data_handler.usecols.get('metadata_update_cols', [])
+        update_source = df_collected[['bvid'] + [col for col in update_cols if col in df_collected.columns]].copy()
+
+        cols_to_drop = [col for col in update_cols if col in updated_main_df.columns]
+        base_df = updated_main_df.drop(columns=cols_to_drop)
+        final_df = pd.merge(base_df, update_source, on='bvid', how='left')
+
         output_path = self.config.get_path('main_data', 'output_paths', **dates)
-        self.data_handler.save_df(updated_main_df, output_path)
+        self.data_handler.save_df(final_df, output_path, 'stat')
 
     def run_daily_new_song(self):
         """处理每日新曲榜数据。"""

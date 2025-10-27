@@ -18,5 +18,6 @@ __pycache__/
 !rankings.yaml
 !keywords.json
 *.zip
-*txt
+*.txt
+*.md
 !requirements.txt

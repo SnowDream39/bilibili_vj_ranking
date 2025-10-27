@@ -1,4 +1,4 @@
-# config/dataclass.py
+# utils/dataclass.py
 from dataclasses import dataclass, field
 from typing import List, Optional
 from pathlib import Path
@@ -73,6 +73,7 @@ class Config:
     STREAK_THRESHOLD: int = 7
     MIN_TOTAL_VIEW: int = 10000
     BASE_THRESHOLD: int = 100
+    HOT_RANK_CATE_ID: int = 30
     LOCAL_METADATA_FIELDS: List[str] = field(default_factory=lambda: [
         'bvid', 'name', 'author', 'copyright', 'synthesizer', 'vocal', 'type'
     ])

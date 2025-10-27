@@ -45,7 +45,8 @@ class BilibiliApiClient:
         async with session.get(url, headers=headers, proxy=proxy_url, timeout=aiohttp.ClientTimeout(total=15)) as response:
             if response.status == 200:
                 return await response.json()
-        return None
+            else:
+                raise Exception(f"HTTP 请求失败，状态码: {response.status}")
 
     def _search_by_type(self, keyword: str, page: int, options: SearchOptions):
         """封装 bilibili-api 的搜索功能。"""
@@ -150,3 +151,38 @@ class BilibiliApiClient:
             except Exception as e:
                 logger.error(f"处理批次时发生异常: {e}, 批次: {batch_aids}")
         return all_stats
+
+    async def get_videos_from_newlist_rank(self, cate_id: int, time_from: str, time_to: str) -> List[Dict[str, Any]]:
+        """
+        分页获取热门榜视频，内置局部重试。
+        """
+        all_videos: List[Dict[str, Any]] = []
+        page = 1
+        
+        while True:
+            url = (
+                f"https://api.bilibili.com/x/web-interface/newlist_rank?"
+                f"main_ver=v3&search_type=video&view_type=hot_rank&copy_right=-1&order=click"
+                f"&cate_id={cate_id}&page={page}&pagesize=50&time_from={time_from}&time_to={time_to}"
+            )
+            
+            logger.info(f"{time_from}~{time_to}, 第 {page} 页...")
+            
+            jsondata = None
+            for attempt in range(self.config.MAX_RETRIES):
+                response = await self._fetch_json(url)
+                if response and response.get('code') == 0 and (response.get('data', {}).get('result') or page > 1):
+                    jsondata = response
+                    break
+                await asyncio.sleep(1.5 ** attempt)
+            else: 
+                logger.error(f"第{page}页 重试失败，放弃该时段")
+                break 
+            videos = jsondata.get('data', {}).get('result')
+            if not videos:
+                break
+
+            all_videos.extend(videos)
+            page += 1
+            await asyncio.sleep(self.config.SLEEP_TIME)
+        return all_videos

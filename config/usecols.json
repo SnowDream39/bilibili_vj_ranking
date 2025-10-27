@@ -231,6 +231,15 @@
 			"like",
 			"point",
 			"rank"
+		],
+		"metadata_update_cols": [
+            "title",
+            "name",
+            "author",
+            "copyright",
+            "synthesizer",
+            "vocal",
+            "type"
 		]
 	},
 	"maps": {

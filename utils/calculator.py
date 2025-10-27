@@ -52,7 +52,11 @@ def calculate_scores(view: int, favorite: int, coin: int, like: int, copyright: 
         favoriteR = 0 if favorite <= 0 else max(ceil(min((favorite + 2 * fixA * coin) * 10 / (favorite * 10 + view) * 20, 20) * 100) / 100, 0)
         coinR = 0 if fixA * coin * 40 + view <= 0 else max(ceil(min((fixA * coin * 40) / (fixA * coin * 20 + view) * 40, 40) * 100) / 100, 0)
         likeR = 0 if like <= 0 else max(floor(min(5, max(fixA * coin + favorite, 0) / (like * 20 + view) * 100) * 100) / 100, 0)
-
+    if ranking_type in ('annual'):
+        viewR = viewR / 2 + 0.5
+        favoriteR = favoriteR / 2 + 10
+        coinR = coinR / 2 + 20
+        likeR = likeR / 2 + 2.5
     return viewR, favoriteR, coinR, likeR, fixA, fixB, fixC
 
 def calculate_points(diff: List[float], scores: Tuple[float, ...]) -> float:

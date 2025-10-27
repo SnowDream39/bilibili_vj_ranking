@@ -16,7 +16,7 @@ COLOR_YELLOW = 'FFFF00' # 黄色，用于AI收录的歌曲
 COLOR_LIGHT_BLUE = 'ADD8E6' # 浅蓝色，用于预先已标注的歌曲
 
 class AITagger:
-    """使用自定义的、兼容OpenAI的API对视频数据进行筛选和标注。"""
+    """使用远程API对视频数据进行筛选和标注。"""
 
     def __init__(self, input_file: Path, output_file: Path, config_handler: ConfigHandler):
         self.input_file = input_file
@@ -30,21 +30,36 @@ class AITagger:
             logger.error("配置文件 config/ai.yaml 未找到！")
             raise
 
-        self.model_name = cfg.get("API_MODEL")
+        self.provider = cfg.get('PROVIDER', 'API')
         self.batch_size = cfg.get("BATCH_SIZE", 15) 
-        self.max_concurrency = cfg.get("MAX_CONCURRENCY", 3) 
+        self.max_concurrency = cfg.get("MAX_CONCURRENCY", 10) 
+        self.max_attempts = cfg.get("MAX_ATTEMPTS", 10)
+        
+        if self.provider == 'LOCAL':
+            provider_cfg = cfg.get('LOCAL', {})
+            logger.info("AI Tagger 正在使用本地模型提供商 (LOCAL)。")
+        elif self.provider == 'API':
+            provider_cfg = cfg.get('API', {})
+            logger.info("AI Tagger 正在使用远程 API 提供商 (API)。")
+        else:
+            raise ValueError(f"config/ai.yaml 中的 AI 提供商 '{self.provider}' 不支持。请使用 'API' 或 'LOCAL'。")
+
+        self.model_name = provider_cfg.get("API_MODEL")
+        if not self.model_name:
+            raise ValueError(f"未在 config/ai.yaml 中为提供商 '{self.provider}' 定义 API_MODEL。")
 
         self.client = AsyncOpenAI(
-            base_url=cfg.get("API_URL"), 
-            api_key=cfg.get("API_KEY"), 
-            timeout=Timeout(100.0)
+            base_url=provider_cfg.get("API_URL"), 
+            api_key=provider_cfg.get("API_KEY"), 
+            timeout=Timeout(60.0)
         )
+        
         self.semaphore = asyncio.Semaphore(self.max_concurrency)
-
         synthesizers, vocals = self._load_known_tags()
         self.prompt_template = self._load_prompt_template(synthesizers, vocals)
 
     def _extract_tags(self, series: pd.Series) -> Set[str]:
+        """提取并清洗标签集合。"""
         tags = set()
         for item in series.dropna().astype(str):
             tags.update(tag.strip() for tag in item.split('、') if tag.strip())
@@ -95,37 +110,47 @@ class AITagger:
     async def _get_ai_tags_batch(self, batch_data: List[Dict]) -> Optional[List[Dict]]:
         """为一批视频调用AI API获取标注结果。"""
         user_content = json.dumps({"videos": batch_data}, ensure_ascii=False) 
-        async with self.semaphore:
+        last_exception = None
+        for attempt in range(self.max_attempts):
             try:
-                response = await self.client.chat.completions.create(
-                    model=self.model_name,
-                    messages=[
-                        {"role": "system", "content": self.prompt_template},
-                        {"role": "user", "content": user_content}
-                    ],
-                    response_format={"type": "json_object"}, temperature=0.2,
-                )
+                async with self.semaphore:
+                    params = {
+                        "model": self.model_name, "messages": [{"role": "system", "content": self.prompt_template}, {"role": "user", "content": user_content}],
+                        "temperature": 0.2,
+                    }
+                    if self.provider == 'API':
+                        params["response_format"] = {"type": "json_object"}
 
-                message_content = response.choices[0].message.content
-                if message_content is None:
-                    return None
+                    response = await self.client.chat.completions.create(**params)
                 
+                message_content = response.choices[0].message.content
+                if message_content:
+                    logger.info(f"AI Raw Response (Attempt {attempt + 1}):\n---\n{message_content}\n---")
+                else:
+                    logger.warning(f"Attempt {attempt + 1}/{self.max_attempts}: AI did not return any message content.")
+                    continue
+
                 parsed_json = self._parse_json_from_response(message_content)
                 if not parsed_json:
-                    return None
+                    logger.warning(f"Attempt {attempt + 1}/{self.max_attempts}: Failed to parse JSON from response.")
+                    continue 
 
                 results = parsed_json.get("results", [])
                 if len(results) == len(batch_data):
                     return results
                 else:
-                    logger.error(f"批次返回结果数({len(results)})与请求数({len(batch_data)})不匹配。")
-                    return None
+                    logger.warning(f"Attempt {attempt + 1}/{self.max_attempts}: Result count mismatch.")
+                    continue 
+
             except Exception as e:
-                logger.error(f"批次API调用异常: {e}")
-                return None 
-            
+                last_exception = e
+                logger.error(f"Attempt {attempt + 1}/{self.max_attempts} failed with exception: {e}")
+ 
+        logger.error(f"Batch failed after {self.max_attempts} attempts. Last exception: {last_exception}")
+        return None
+    
     def _prepare_dataframe(self) -> Tuple[pd.DataFrame, pd.DataFrame, Dict[int, str]]:
-        """读取并准备DataFrame。"""
+        """读取并准备DataFrame，区分已标注和待处理的数据。"""
         df = pd.read_excel(self.input_file)
         required_cols = ['synthesizer', 'vocal', 'type']
         for col in required_cols:
@@ -141,6 +166,7 @@ class AITagger:
         return df, df_to_process, row_styles
 
     def _apply_batch_results(self, df: pd.DataFrame, chunk_indices: pd.Index, results: List[Dict], styles: Dict[int, str]):
+        """将一个批次的AI处理结果应用到主DataFrame上，并更新样式。"""
         required_cols = ['synthesizer', 'vocal', 'type']
         for idx, res in zip(chunk_indices, results):
             if res.get('include'):
@@ -155,7 +181,8 @@ class AITagger:
 
     async def _process_chunk(self, chunk: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[List[Dict]]]:
         """执行API调用并返回原始chunk及其结果。"""
-        results = await self._get_ai_tags_batch(chunk.to_dict('records'))
+        cols_to_send = ['title', 'uploader', 'intro', 'copyright']
+        results = await self._get_ai_tags_batch(chunk.reindex(columns=cols_to_send).to_dict('records'))
         return chunk, results
 
     async def run(self):
@@ -168,7 +195,8 @@ class AITagger:
 
         if to_process.empty:
             logger.info("没有需要AI处理的歌曲。")
-            save_to_excel(df, self.output_file, row_styles=styles)
+            if not self.output_file.exists():
+                save_to_excel(df, self.output_file, row_styles=styles)
             return
 
         save_to_excel(df, self.output_file, row_styles=styles)

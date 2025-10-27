@@ -23,7 +23,7 @@ class BilibiliScraper:
 
     def __init__(self, 
                  api_client: BilibiliApiClient,
-                 mode: Literal["new", "old", "special"], 
+                 mode: Literal["new", "old", "special", "hot_rank"], 
                  input_file: Union[str, Path, None] = None, 
                  days: int = 2,
                  config: Config = Config(), 
@@ -37,6 +37,7 @@ class BilibiliScraper:
         self.search_restrictions = search_restrictions
         self.config.OUTPUT_DIR.mkdir(exist_ok=True)
         self.songs = pd.DataFrame()
+        self.existing_bvids: Set[str] = set()
 
         if self.mode == "new":
             self.filename = self.config.OUTPUT_DIR / f"新曲{self.today.strftime('%Y%m%d')}.xlsx"
@@ -53,7 +54,25 @@ class BilibiliScraper:
         elif self.mode == "special":
             self.filename = self.config.OUTPUT_DIR / f"{self.config.NAME}.xlsx"
 
+        elif self.mode == "hot_rank":
+            self.start_date = self.today
+            self.end_date = self.start_date - timedelta(days=days)
+            self.filename = self.config.OUTPUT_DIR / f"{self.config.HOT_RANK_CATE_ID}-hot_rank_{self.end_date.strftime('%Y%m%d')}_to_{self.start_date.strftime('%Y%m%d')}.xlsx"
+            self.existing_bvids = self._load_existing_bvids("收录曲目.xlsx")
 
+    def _load_existing_bvids(self, file_path: Union[str, Path]) -> Set[str]:
+        try:
+            existing_df = pd.read_excel(file_path, usecols=['bvid'])
+            bvids = set(existing_df['bvid'].dropna().astype(str))
+            logger.info(f"从 {file_path} 加载了 {len(bvids)} 个已收录的 bvid。")
+            return bvids
+        except FileNotFoundError:
+            logger.warning(f"{file_path} 不存在，未加载任何已收录的 bvid。")
+            return set()
+        except Exception as e:
+            logger.error(f"加载已收录 bvid 时出错: {e}")
+            return set()
+        
     async def process_new_songs(self) -> List[Dict[str, Any]]:
         """处理新曲数据的主入口。"""
         logger.info("开始处理新曲数据")
@@ -258,6 +277,69 @@ class BilibiliScraper:
         usecols = json.load(Path('config/usecols.json').open(encoding='utf-8'))["columns"]["record"]
         save_to_excel(self.songs, "收录曲目.xlsx", usecols=usecols)
     
+    async def process_hot_rank_videos(self) -> None:
+        """
+        处理热门榜视频数据的主入口。
+        """
+        logger.info(f"时间范围：{self.end_date.strftime('%Y-%m-%d')} 至 {self.start_date.strftime('%Y-%m-%d')}")
+        
+        all_videos_data = []
+        current_date = self.start_date
+
+        while current_date >= self.end_date:
+            next_date = max(current_date - timedelta(days=90), self.end_date)
+            time_from = next_date.strftime('%Y%m%d')
+            time_to = current_date.strftime('%Y%m%d')
+
+            raw_videos = await self.api_client.get_videos_from_newlist_rank(
+                self.config.HOT_RANK_CATE_ID, time_from, time_to
+            )
+            
+            if not raw_videos:
+                current_date = next_date - timedelta(days=1)
+                await asyncio.sleep(1)
+                continue
+
+            stop_processing_this_chunk = False
+            for video in raw_videos:
+                if stop_processing_this_chunk:
+                    break
+                
+                view_count = int(video.get('play'))
+                if 0 < view_count < self.config.MIN_TOTAL_VIEW:
+                    logger.info(f"播放量{view_count}低于{self.config.MIN_TOTAL_VIEW}，结束当前时段")
+                    stop_processing_this_chunk = True
+                    continue
+
+                bvid = video.get('bvid')
+                if not bvid or bvid in self.existing_bvids:
+                    continue
+                
+                duration = int(video.get('duration'))
+                if duration <= self.config.MIN_VIDEO_DURATION:
+                    continue
+
+                all_videos_data.append({
+                    'title': clean_tags(video.get('title', '')),
+                    'bvid': bvid,
+                    'aid': video.get('id'),
+                    'view': view_count,
+                    'pubdate': video.get('pubdate'),
+                    'author': video.get('author', ''),
+                    'image_url': video.get('pic', '')
+                })
+
+            current_date = next_date - timedelta(days=1)
+            await asyncio.sleep(1)
+
+        if not all_videos_data:
+            logger.info("未采集到新视频。") 
+            return
+            
+        videos = sorted(all_videos_data, key=lambda x: x.get('view', 0), reverse=True)
+        logger.info(f"采集到 {len(videos)} 个新视频。")
+        await self.save_to_excel(videos)
+
     async def save_to_excel(self, videos: List[Dict[str, Any]], usecols: Optional[List[str]] = None) -> None:
         if not videos:
             logger.info("没有数据需要保存。")
