@@ -8,7 +8,7 @@ import pandas as pd
 from math import ceil, floor
 from utils.io_utils import format_columns
 
-def calculate_scores(view: int, favorite: int, coin: int, like: int, copyright: int, ranking_type: str):
+def calculate_scores(view: int, favorite: int, coin: int, like: int, danmaku: int, reply: int, share: int, copyright: int, ranking_type: str):
     """
     计算视频的各项评分
     
@@ -23,7 +23,7 @@ def calculate_scores(view: int, favorite: int, coin: int, like: int, copyright: 
     Returns:
         tuple: (播放分,收藏分,硬币分,点赞分,修正系数A,修正系数B,修正系数C)
     """
-    viewR, favoriteR, coinR, likeR, fixA, fixB, fixC = (0.0,) * 7
+    viewR, favoriteR, coinR, likeR, danmakuR, replyR, shareR, fixA, fixB, fixC = (0.0,) * 10
     # 版权判定: 自制=1, 转载=2
     copyright = 1 if copyright in [1, 3, 101] else 2
     # 特殊情况处理: 如果有其他互动但没有投币,虚设为1参与计算
@@ -57,7 +57,8 @@ def calculate_scores(view: int, favorite: int, coin: int, like: int, copyright: 
         favoriteR = favoriteR / 2 + 10
         coinR = coinR / 2 + 20
         likeR = likeR / 2 + 2.5
-    return viewR, favoriteR, coinR, likeR, fixA, fixB, fixC
+    
+    return viewR, favoriteR, coinR, likeR, danmakuR, replyR, shareR, fixA, fixB, fixC
 
 def calculate_points(diff: List[float], scores: Tuple[float, ...]) -> float:
     """
@@ -74,12 +75,16 @@ def calculate_points(diff: List[float], scores: Tuple[float, ...]) -> float:
     coin =  1 if (diff[2] == 0 and diff[0] > 0 and diff[1] > 0 and diff[3] > 0) else diff[2]
     
     # 计算各项分数
-    viewR, favoriteR, coinR, likeR, fixA = scores[:5]
+    #viewR, favoriteR, coinR, likeR, fixA = scores[:5]
+    viewR, favoriteR, coinR, likeR, danmakuR, replyR, shareR, fixA = scores[:8]
     viewP = diff[0] * viewR             # 播放得分
     favoriteP = diff[1] * favoriteR     # 收藏得分
     coinP = coin * coinR * fixA         # 硬币得分
     likeP = diff[3] * likeR             # 点赞得分
-    return viewP + favoriteP + coinP + likeP
+    danmakuP = diff[4] * danmakuR     # 弹幕得分
+    replyP = diff[5] * replyR         # 评论得分
+    shareP = diff[6] * shareR         # 分享得分
+    return viewP + favoriteP + coinP + likeP + danmakuP + replyP + shareP
 
 def calculate_ranks(df: pd.DataFrame) -> pd.DataFrame:
     """计算DataFrame中各项指标的排名。
@@ -93,7 +98,7 @@ def calculate_ranks(df: pd.DataFrame) -> pd.DataFrame:
     # 按总分（point）降序排序
     df = df.sort_values('point', ascending=False)
     # 分别计算单项排名
-    for col in ['view', 'favorite', 'coin', 'like']:
+    for col in ['view', 'favorite', 'coin', 'like', 'danmaku', 'reply', 'share']:
         df[f'{col}_rank'] = df[col].rank(ascending=False, method='min')
     # 计算总排名
     df['rank'] = df['point'].rank(ascending=False, method='min')
@@ -156,11 +161,10 @@ def calculate_differences(new: pd.Series, ranking_type: str, old: Optional[pd.Se
     if ranking_type in ('daily', 'weekly', 'monthly', 'annual'):
         if old is None:
             raise
-        return {col: new[col] - old.get(col, 0) for col in ['view', 'favorite', 'coin', 'like']}
+        return {col: new[col] - old.get(col, 0) for col in ['view', 'favorite', 'coin', 'like', 'danmaku', 'reply', 'share']}
     # 特刊按总数据值计算
     elif ranking_type == 'special':
-        return {col: new[col] for col in ['view', 'favorite', 'coin', 'like']}
-    
+        return {col: new[col] for col in ['view', 'favorite', 'coin', 'like', 'danmaku', 'reply', 'share']}
     else:
         raise
 
@@ -177,9 +181,9 @@ def calculate(new: pd.Series, old: Optional[pd.Series], ranking_type: str):
     Returns:
         list: 包含差值、评分系数和总分的计算结果列表。
     """
-    diff = [calculate_differences(new, ranking_type, old)[col] for col in ['view', 'favorite', 'coin', 'like']]
-    scores = calculate_scores(diff[0], diff[1], diff[2], diff[3], new['copyright'], ranking_type)
-    point = round(scores[5] * scores[6] * calculate_points(diff, scores))
+    diff = [calculate_differences(new, ranking_type, old)[col] for col in ['view', 'favorite', 'coin', 'like', 'danmaku', 'reply', 'share']]
+    scores = calculate_scores(diff[0], diff[1], diff[2], diff[3], diff[4], diff[5], diff[6], new['copyright'], ranking_type)
+    point = round(scores[8] * scores[9] * calculate_points(diff, scores))
     
     return diff + list(scores) + [point]
 

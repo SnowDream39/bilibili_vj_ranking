@@ -4,7 +4,7 @@ from src.ranking_processor import RankingProcessor
 
 async def main():
     processor = RankingProcessor(period='special')
-    await processor.run(song_data='弹幕评论')
+    await processor.run(song_data='20251129')
 
 if __name__ == "__main__":
     asyncio.run(main())

@@ -57,7 +57,7 @@ def process_records(
                 # 如果发布时间早于统计周期，则跳过 (属于更早的视频)
                 if pubdate < threshold: continue
                 # 周期内的新视频，则创建一个全为0的旧数据记录用于计算增量
-                old = pd.Series({'view': 0, 'favorite': 0, 'coin': 0, 'like': 0})
+                old = pd.Series({'view': 0, 'favorite': 0, 'coin': 0, 'like': 0, 'danmaku': 0, 'reply': 0, 'share': 0})
         
         # 需要通过收录曲目信息补充
         if collected_data is not None:
@@ -78,11 +78,12 @@ def process_records(
             'vocal': new['vocal'], 'type': new['type'], 'pubdate': new['pubdate'], 
             'duration': new['duration'], 'page': new['page'], 
             'view': data[0], 'favorite': data[1], 'coin': data[2], 
-            'like': data[3], 
-            'viewR': f'{data[4]:.2f}', 'favoriteR': f'{data[5]:.2f}', 
-            'coinR': f'{data[6]:.2f}', 'likeR': f'{data[7]:.2f}',
-            'fixA': f'{data[8]:.2f}', 'fixB': f'{data[9]:.2f}', 
-            'fixC': f'{data[10]:.2f}', 'point': data[11], 
+            'like': data[3], 'danmaku': data[4], 'reply': data[5], 'share': data[6],
+            'viewR': f'{data[7]:.2f}', 'favoriteR': f'{data[8]:.2f}', 
+            'coinR': f'{data[9]:.2f}', 'likeR': f'{data[10]:.2f}',
+            'danmakuR': f'{data[11]:.2f}', 'replyR': f'{data[12]:.2f}', 'shareR': f'{data[13]:.2f}',
+            'fixA': f'{data[14]:.2f}', 'fixB': f'{data[15]:.2f}', 
+            'fixC': f'{data[16]:.2f}', 'point': data[17], 
             'image_url': new['image_url']
         }
         if 'intro' in new and pd.notna(new['intro']):

@@ -208,8 +208,9 @@ class BilibiliScraper:
                 'duration': info.get('duration', 0), # 保持为整数
                 'page': info.get('page', 1), 'view': info.get('cnt_info', {}).get('play', 0),
                 'favorite': info.get('cnt_info', {}).get('collect', 0), 'coin': info.get('cnt_info', {}).get('coin', 0),
-                'like': info.get('cnt_info', {}).get('thumb_up', 0), 'image_url': info.get('cover', ''),
-                'intro': info.get('intro', '')
+                'like': info.get('cnt_info', {}).get('thumb_up', 0), 'danmaku': info.get('cnt_info', {}).get('danmaku', 0),
+                'reply': info.get('cnt_info', {}).get('reply', 0), 'share': info.get('cnt_info', {}).get('share', 0),
+                'image_url': info.get('cover', ''), 'intro': info.get('intro', '')
             })
         return videos_data
 

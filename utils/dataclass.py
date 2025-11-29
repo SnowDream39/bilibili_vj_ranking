@@ -25,6 +25,9 @@ class VideoInfo:
     favorite: int = 0
     coin: int = 0
     like: int = 0
+    danmaku: int = 0
+    reply: int = 0
+    share: int = 0
     image_url: str = ""
     intro: str = ""
     streak: int = 0

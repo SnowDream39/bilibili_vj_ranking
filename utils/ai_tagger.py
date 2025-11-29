@@ -152,37 +152,51 @@ class AITagger:
     def _prepare_dataframe(self) -> Tuple[pd.DataFrame, pd.DataFrame, Dict[int, str]]:
         """读取并准备DataFrame，区分已标注和待处理的数据。"""
         df = pd.read_excel(self.input_file)
-        required_cols = ['synthesizer', 'vocal', 'type']
-        for col in required_cols:
+        tagging_cols = ['synthesizer', 'vocal', 'type']
+        for col in tagging_cols:
             if col not in df.columns:
                 df[col] = pd.NA
+        
+        for col in tagging_cols:
             df[col] = df[col].astype(object)
+        df['status'] = 'check' 
         row_styles = {}
-        tagged_mask = df[required_cols].notna().all(axis=1)
-        for idx in df[tagged_mask].index:
-            row_styles[idx] = COLOR_LIGHT_BLUE
+        tagged_mask = df[tagging_cols].notna().all(axis=1)
+
+        done_indices = df[tagged_mask].index
+        df.loc[done_indices, 'status'] = 'done'
+        for idx in done_indices:
+            row_styles[idx] = COLOR_LIGHT_BLUE      
         df_to_process = df[~tagged_mask].copy()
-        logger.info(f"总计 {len(df)} 首。已标注 {len(df) - len(df_to_process)} 首，待处理 {len(df_to_process)} 首。")
+        logger.info(f"总计 {len(df)} 首。已标注 {len(done_indices)} 首，待处理 {len(df_to_process)} 首。")
         return df, df_to_process, row_styles
 
     def _apply_batch_results(self, df: pd.DataFrame, chunk_indices: pd.Index, results: List[Dict], styles: Dict[int, str]):
-        """将一个批次的AI处理结果应用到主DataFrame上，并更新样式。"""
-        required_cols = ['synthesizer', 'vocal', 'type']
+        """将一个批次的AI处理结果应用到主DataFrame上，并更新样式和status。"""
+        tagging_cols = ['synthesizer', 'vocal', 'type']
         for idx, res in zip(chunk_indices, results):
+            if not isinstance(res, dict):
+                logger.warning(f"在索引 {idx} 处的结果不是一个有效的字典: {res}")
+                df.at[idx, 'status'] = 'check' 
+                continue
+                
             if res.get('include'):
                 tags = res.get('tags', {})
                 for key, value in tags.items():
                     if key in df.columns:
                         df.at[idx, key] = value
                 styles[idx] = COLOR_YELLOW 
+                df.at[idx, 'status'] = 'auto' 
             else:
-                for col in required_cols:
-                    df.at[idx, col] = pd.NA
+                for col in tagging_cols:
+                    df.at[idx, col] = pd.NA 
+                df.at[idx, 'status'] = 'check'
 
     async def _process_chunk(self, chunk: pd.DataFrame) -> Tuple[pd.DataFrame, Optional[List[Dict]]]:
         """执行API调用并返回原始chunk及其结果。"""
         cols_to_send = ['title', 'uploader', 'intro', 'copyright']
-        results = await self._get_ai_tags_batch(chunk.reindex(columns=cols_to_send).to_dict('records'))
+        batch_records = chunk.reindex(columns=cols_to_send).to_dict('records')
+        results = await self._get_ai_tags_batch(batch_records)
         return chunk, results
 
     async def run(self):

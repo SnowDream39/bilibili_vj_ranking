@@ -6,7 +6,7 @@ from src.bilibili_scraper import Config, BilibiliScraper
 from src.bilibili_api_client import BilibiliApiClient
 
 async def main():
-    config = Config(OUTPUT_DIR=Path("数据"))
+    config = Config(OUTPUT_DIR=Path("测试内容"))
     api_client = BilibiliApiClient(config=config)
     scraper = BilibiliScraper(api_client=api_client, mode="old", config=config, input_file="收录曲目.xlsx")
     try:
