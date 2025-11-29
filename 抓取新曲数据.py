@@ -9,7 +9,7 @@ with open('config/keywords.json', 'r', encoding='utf-8') as file:
     keywords = json.load(file)
 
 async def main():
-    config = Config(KEYWORDS=keywords, OUTPUT_DIR=Path('测试内容'))
+    config = Config(KEYWORDS=keywords, OUTPUT_DIR=Path('新曲数据'))
     search_options = [
         SearchOptions(video_zone_type=3),
         SearchOptions(video_zone_type=47),
