@@ -80,9 +80,16 @@ class BilibiliScraper:
             lambda v: v.get('title', '') != "已失效视频",
             lambda v: v.get('duration', 0) > self.config.MIN_VIDEO_DURATION
         ]
-
-        final_filters = [lambda v: datetime.strptime(v.pubdate, '%Y-%m-%d %H:%M:%S') > self.start_time] if self.mode == "new" else []  
-
+        final_filters = []
+        if self.mode == "new":
+            final_filters.append(lambda v: datetime.strptime(v.pubdate, '%Y-%m-%d %H:%M:%S') > self.start_time)
+        elif self.mode == "special":
+            option = self.search_options[0] if self.search_options else None
+            if option and option.time_start and option.time_end:
+                start = f"{option.time_start} 00:00:00"
+                end_date = datetime.strptime(option.time_end, "%Y-%m-%d") + timedelta(days=1)
+                end = end_date.strftime("%Y-%m-%d %H:%M:%S")
+                final_filters.append(lambda v: start <= v.pubdate < end)
         video_objects = await self._process_song_data_pipeline(
             aid_source_coro=self._get_all_aids(),
             api_filters=api_filters,

@@ -12,21 +12,19 @@ from src.bilibili_api_client import BilibiliApiClient
 with open('config/特殊.yaml', 'r', encoding='utf-8') as file:
     config_file = yaml.safe_load(file)
 
-with open('config/keywords.json', 'r', encoding='utf-8') as file:
-    keywords = json.load(file)
-
 config = Config(
-    KEYWORDS= keywords,
+    KEYWORDS= config_file['keywords'],
     OUTPUT_DIR=Path('特殊/特殊原始数据'),
     NAME= config_file['name']
 )
 
 restrictions = SearchRestrictions(
-    min_view = 10000000,
 )
 
 search_options = [SearchOptions(
-    order_type = search.OrderVideo.STOW,
+    order_type = search.OrderVideo.PUBDATE,
+    time_start = "2025-09-27",
+    time_end = "2025-11-27",
     video_zone_type = 0 )
 ]
 
