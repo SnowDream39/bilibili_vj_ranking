@@ -4,8 +4,8 @@ from openpyxl import load_workbook
 from openpyxl.cell import MergedCell
 from multiprocessing import Pool, cpu_count
 
-OLD_VALUES = {"足力零": "足立零", "星尘Infinity": "星尘", "永夜": "永夜Minus"}
-TARGET_COLUMN_NAME = 'vocal'  # None 表示全表
+OLD_VALUES = {"秘密耳环(Jinbiii)": "求婚(Jinbiii)"}
+TARGET_COLUMN_NAME = 'name'  # None 表示全表
 PARTIAL_REPLACE = False  # True: 部分匹配, False: 精确匹配
 
 def process_excel_file(file_path: str) -> tuple[str, str]:
