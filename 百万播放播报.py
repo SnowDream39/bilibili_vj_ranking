@@ -19,13 +19,12 @@ if __name__ == "__main__":
     today = datetime.now()
     day_of_week = today.weekday()
     modes_to_run = []
-    if day_of_week == 5:  #星期六
+    if day_of_week == 5:  # 星期六
         modes_to_run = [0, 1]  
     else:
         modes_to_run = [0]
 
     for mode in modes_to_run:
-        
         date2 = (datetime.now()).replace(hour=0, minute=0,second=0,microsecond=0).strftime('%Y%m%d')
 
         if mode == 0: 
@@ -46,13 +45,16 @@ if __name__ == "__main__":
             continue 
         
         df_merged = pd.merge(df_date1[['bvid', 'view']], 
-                             df_date2[['bvid', 'view', 'title', 'name', 'author', 'pubdate']], 
+                             df_date2[['bvid', 'view', 'title', 'name', 'author', 'pubdate', 'image_url']], 
                              on='bvid', how='right', suffixes=(f'_{date1}', f'_{date2}'))
         
         df_merged[f'view_{date1}'] = df_merged[f'view_{date1}'].fillna(0)
         
+        # 计算百万单位
         df_merged[f'view_{date1}_million'] = (df_merged[f'view_{date1}'] // 1000000).astype(int)
         df_merged[f'view_{date2}_million'] = (df_merged[f'view_{date2}'] // 1000000).astype(int)
+        
+        # 计算十万单位 (1代表10万, 10代表100万)
         df_merged[f'view_{date1}_10w'] = (df_merged[f'view_{date1}'] // 100000).astype(int)
         df_merged[f'view_{date2}_10w'] = (df_merged[f'view_{date2}'] // 100000).astype(int)
         
@@ -67,69 +69,43 @@ if __name__ == "__main__":
         for _, row in df_merged.iterrows():
             view1_million = row[f'view_{date1}_million']
             view2_million = row[f'view_{date2}_million']
-            view1_10w = row[f'view_{date1}_10w']
-            view2_10w = row[f'view_{date2}_10w']
+            
+            # 十万起止点
+            start_10w = 0 if row['is_new_video'] else row[f'view_{date1}_10w']
+            end_10w = row[f'view_{date2}_10w']
             
             if not row['is_new_video'] and row[f'view_{date1}'] == 0:
                 continue
 
-            if row['is_new_video']:
-                if view2_million > 0:
-                    for million in range(1, view2_million + 1):
-                        million_rows.append({
-                            'title': row['title'],
-                            'bvid': row['bvid'],
-                            'name': row['name'],
-                            'author': row['author'],
-                            'pubdate': row['pubdate'],
-                            'million_crossed': million 
-                        })
-            else:
-                if view2_million > view1_million:
-                    for million in range(view1_million + 1, view2_million + 1):
-                        million_rows.append({
-                            'title': row['title'],
-                            'bvid': row['bvid'],
-                            'name': row['name'],
-                            'author': row['author'],
-                            'pubdate': row['pubdate'],
-                            'million_crossed': million  
-                        })
-            
-            if row['is_new_video']:
-                if view2_10w > 0 and view2_10w % 10 == 1:
-                    _10w_rows.append({
+            # === 1. 百万记录逻辑 ===
+            if view2_million > view1_million:
+                start_mil = 0 if row['is_new_video'] else view1_million
+                for million in range(start_mil + 1, view2_million + 1):
+                    million_rows.append({
                         'title': row['title'],
                         'bvid': row['bvid'],
                         'name': row['name'],
                         'author': row['author'],
                         'pubdate': row['pubdate'],
-                        '10w_crossed': view2_10w * 10
+                        'image_url': row['image_url'],
+                        'million_crossed': million 
                     })
-            else:
-                if view2_10w > view1_10w:
-                    for _10w in range(view1_10w + 1, view2_10w + 1):
-                        _10nw=[]
-                        if _10w == 1:
-                            _10w_rows.append({
-                                'title': row['title'],
-                                'bvid': row['bvid'],
-                                'name': row['name'],
-                                'author': row['author'],
-                                'pubdate': row['pubdate'],
-                                '10w_crossed': _10w * 10
-                            })
-                            
-                        else:
-                            if _10w in [2,3,4,5,6,7,8,9,25, 95, 75, 99]:
-                                _10nw.append({
-                                    'name': row['name'],
-                                    '10w_crossed': _10w * 10,
-                                    'bvid': row['bvid']
-                                })
-                                for _10nw_row in _10nw:
-                                    print(f"{_10nw_row['10w_crossed']}万：{_10nw_row['name']}  {_10nw_row['bvid']}")
 
+            # === 2. 十万记录逻辑 ===
+            if end_10w > start_10w:
+                for milestone in range(start_10w + 1, end_10w + 1):
+                    if milestone <= 9 or milestone % 10 == 0:
+                        _10w_rows.append({
+                            'title': row['title'],
+                            'bvid': row['bvid'],
+                            'name': row['name'],
+                            'author': row['author'],
+                            'pubdate': row['pubdate'],
+                            'image_url': row['image_url'],
+                            '10w_crossed': milestone
+                        })
+
+        # === 导出百万记录 ===
         if million_rows:
             df_million_export = pd.DataFrame(million_rows)
             df_million_export = df_million_export.sort_values(by='million_crossed', ascending=False)
@@ -138,9 +114,11 @@ if __name__ == "__main__":
                 df_million_export.to_excel(writer, index=False, sheet_name='Sheet1')
                 adjust_column_width(writer, 'Sheet1')
             
+            print("\n--- 百万达成 ---")
             for _, row in df_million_export.iterrows():
                 print(f"{row['million_crossed'] * 100}万：{row['name']}   {row['bvid']}")
 
+        # === 导出十万记录 ===
         if _10w_rows:
             df_10w_export = pd.DataFrame(_10w_rows)
             df_10w_export = df_10w_export.sort_values(by='10w_crossed', ascending=False)
@@ -149,7 +127,8 @@ if __name__ == "__main__":
                 df_10w_export.to_excel(writer, index=False, sheet_name='Sheet1')
                 adjust_column_width(writer, 'Sheet1')
             
+            print("\n--- 十万达成 ---")
             for _, row in df_10w_export.iterrows():
-                print(f"{row['10w_crossed']}万：{row['name']}   {row['bvid']}")
+                print(f"{row['10w_crossed'] * 10}万：{row['name']}   {row['bvid']}")
         
-    input()
+    input("按回车键退出...")
