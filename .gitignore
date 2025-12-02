@@ -10,6 +10,7 @@ __pycache__/
 !utils/
 *json*
 *萌百*
+条目生成.py
 *测试*
 *调试*
 *.yaml
@@ -20,4 +21,7 @@ __pycache__/
 *.zip
 *.txt
 *.md
+*.log
+*.jpg
+*.png
 !requirements.txt

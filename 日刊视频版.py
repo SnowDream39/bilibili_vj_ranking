@@ -20,8 +20,6 @@ from utils.climax_clipper import find_climax_segment
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
-# ==================== 配置区域 ====================
-
 TOP_N = 10
 TOTAL_DIR = Path("差异/合并表格")
 NEW_SONG_DIR = Path("新曲榜")
@@ -34,8 +32,8 @@ DAILY_VIDEO_DIR = Path("daily_video")
 FFMPEG_BIN = "ffmpeg"
 FIRST_ISSUE_DATE_STR = "20240703"
 
-FONT_FILE = r"C:\Windows\Fonts\msyh.ttc"
-FONT_BOLD_FILE = r"C:\Windows\Fonts\msyhbd.ttc"
+FONT_FILE = r"E:\Users\20330\Downloads\Noto_Sans_SC\static\NotoSansSC-Medium.ttf"
+FONT_BOLD_FILE = r"E:\Users\20330\Downloads\Noto_Sans_SC\static\NotoSansSC-Bold.ttf"
 
 SCROLL_BG_COLOR = (216, 236, 241)
 CARD_W, CARD_H = 960, 280
@@ -45,10 +43,7 @@ SCROLL_HOLD_TIME = 5.0
 SCROLL_SPEED_PPS = 150.0
 
 
-# ==================== 基础工具函数 ====================
-
 def format_number(x) -> str:
-    """完整数字，带千分位；空值 / NaN 用 '-'。"""
     if x is None:
         return "-"
     try:
@@ -72,11 +67,11 @@ def wrap_title(text: str, max_units_per_line: int = 50) -> str:
     units = 0
     out_chars = []
     for ch in text:
-        u = char_units(ch)
-        if units + u > max_units_per_line:
+        unit = char_units(ch)
+        if units + unit > max_units_per_line:
             break
         out_chars.append(ch)
-        units += u
+        units += unit
 
     if len(out_chars) < len(text):
         return "".join(out_chars).rstrip() + "..."
@@ -116,7 +111,6 @@ def get_newsong_excel_for(excel_path: Path, newsong_dir: Path) -> Path:
 
 
 def get_ed_info(issue_index: int) -> Optional[Dict[str, str]]:
-    """从 config/ED.yaml 读取当前期数的 ED 信息: bvid / name / author"""
     CONFIG_DIR.mkdir(exist_ok=True)
     yaml_path = CONFIG_DIR / "ED.yaml"
     if not yaml_path.exists():
@@ -163,10 +157,11 @@ def get_ed_info(issue_index: int) -> Optional[Dict[str, str]]:
         print(f"读取 ED 配置出错: {e}")
         return None
 
+
 def get_ed_bgm_bvid(issue_index: int) -> Optional[str]:
-    """保持原有行为: 只返回 bvid（供 BGM 下载使用）"""
     info = get_ed_info(issue_index)
     return info["bvid"] if info else None
+
 
 def ffmpeg_escape(text: str) -> str:
     s = str(text)
@@ -185,6 +180,21 @@ def ffmpeg_escape_path(path: str) -> str:
     return p
 
 
+def add_x264_encode_args(cmd: List[str]) -> None:
+    cmd += [
+        "-c:v",
+        "libx264",
+        "-crf",
+        "16",
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+    ]
+
+
 def download_bilibili_video(bvid: str) -> Optional[Path]:
     import yt_dlp
 
@@ -198,11 +208,11 @@ def download_bilibili_video(bvid: str) -> Optional[Path]:
 
     print(f"开始下载视频: {bvid}")
     url = f"https://www.bilibili.com/video/{bvid}"
-    out_tmpl = bvid_dir / f"{bvid}.%(ext)s"
+    out_template = bvid_dir / f"{bvid}.%(ext)s"
 
     ydl_opts = {
         "format": "bv*+ba/best",
-        "outtmpl": str(out_tmpl),
+        "outtmpl": str(out_template),
         "quiet": True,
         "no_warnings": True,
     }
@@ -253,15 +263,12 @@ def ensure_cached_audio(bvid: str, cached_video: Path) -> Optional[Path]:
         return None
 
 
-# ==================== 核心处理：生成竖屏视频 ====================
-
 def generate_clip_with_overlay(
     row: pd.Series,
     clip_index: int,
     clip_duration: float,
     issue_date_str: str,
-) -> Optional[Path]:
-
+    ) -> Optional[Path]:
     bvid = str(row.get("bvid", "")).strip()
     title = str(row.get("title", "")).strip()
     author = str(row.get("author", "")).strip()
@@ -278,7 +285,7 @@ def generate_clip_with_overlay(
     count = row.get("count", 0)
     is_new = bool(row.get("is_new", False))
 
-    print(f"\n=== 处理中 #{clip_index} | {bvid} | {title} ===")
+    print(f"=== 处理中 #{clip_index} | {bvid} | {title} ===")
 
     VIDEOS_ROOT.mkdir(exist_ok=True)
     bvid_dir = VIDEOS_ROOT / bvid
@@ -322,16 +329,9 @@ def generate_clip_with_overlay(
             vf_filter,
             "-af",
             af_filter,
-            "-c:v",
-            "libx264",
-            "-preset",
-            "fast",
-            "-crf",
-            "20",
-            "-c:a",
-            "aac",
-            "-b:a",
-            "192k",
+        ]
+        add_x264_encode_args(segment_cmd)
+        segment_cmd += [
             "-avoid_negative_ts",
             "make_zero",
             "-movflags",
@@ -355,6 +355,7 @@ def generate_clip_with_overlay(
     point_text = ffmpeg_escape(format_number(point))
     wm_line1 = ffmpeg_escape("术力口数据姬")
     wm_line2 = ffmpeg_escape("vocabili.top")
+
     if is_new:
         rank_text = ffmpeg_escape("NEW!!")
         rank_color = "#FF3333"
@@ -421,11 +422,11 @@ def generate_clip_with_overlay(
     label_x = "w-260"
     value_x = "w-80-tw"
     base_y = point_y + 70
-    line_h = 32
+    line_height = 32
 
-    stat_filters = []
+    stat_filters: List[str] = []
     for idx, (label, value) in enumerate(stats):
-        y = base_y + idx * line_h
+        y = base_y + idx * line_height
         stat_filters.append(
             f"drawtext=fontfile='{fontfile_expr}':text='{label}':x={label_x}:y={y}:"
             f"fontsize=26:fontcolor=white:shadowx=2:shadowy=2:shadowcolor=black@0.9"
@@ -436,7 +437,7 @@ def generate_clip_with_overlay(
         )
 
     base_filters = [
-        "[0:v]settb=AVTB,setpts=PTS-STARTPTS,setsar=1,fps=30[v0]",
+        "[0:v]settb=AVTB,setpts=PTS-STARTPTS,setsar=1,fps=60[v0]",
         "[v0]scale=trunc(1920*a/2)*2:1920,setsar=1,"
         "crop=1080:1920:(in_w-1080)/2:(in_h-1920)/2,boxblur=20:8[bg]",
         "[v0]scale=1080:-1,setsar=1[fg]",
@@ -446,23 +447,17 @@ def generate_clip_with_overlay(
     watermark_filters = [
         (
             f"drawtext=fontfile='{fontfile_expr}':text='{wm_line1}':"
-            f"x=30:y=h-600:"
-            f"fontsize=36:"
-            f"fontcolor=white@0.35:"          # 半透明白色
-            f"shadowx=1:shadowy=1:"
-            f"shadowcolor=black@0.35"         # 轻微阴影
+            f"x=30:y=h-600:fontsize=36:fontcolor=white@0.65:"
+            f"shadowx=1:shadowy=1:shadowcolor=black@0.65"
         ),
         (
             f"drawtext=fontfile='{fontfile_expr}':text='{wm_line2}':"
-            f"x=30:y=h-560:"
-            f"fontsize=32:"
-            f"fontcolor=white@0.35:"
-            f"shadowx=1:shadowy=1:"
-            f"shadowcolor=black@0.35"
+            f"x=30:y=h-560:fontsize=32:fontcolor=white@0.35:"
+            f"shadowx=1:shadowy=1:shadowcolor=black@0.35"
         ),
     ]
     draw_ops = left_text_filters + [point_filter] + stat_filters + watermark_filters
-    draw_filters = []
+    draw_filters: List[str] = []
     current_label = "vbase"
     for idx, expr in enumerate(draw_ops):
         next_label = f"vtxt{idx}"
@@ -488,18 +483,9 @@ def generate_clip_with_overlay(
         f"[{final_video_label}]",
         "-map",
         "[aout]",
-        "-c:v",
-        "libx264",
-        "-preset",
-        "fast",
-        "-crf",
-        "20",
-        "-pix_fmt",
-        "yuv420p",
-        "-c:a",
-        "aac",
-        "-b:a",
-        "192k",
+    ]
+    add_x264_encode_args(cmd)
+    cmd += [
         "-movflags",
         "+faststart",
         str(clip_filename),
@@ -514,34 +500,32 @@ def generate_clip_with_overlay(
         return None
 
 
-# ==================== 封面生成 ====================
-
 def generate_cover_image_from_rows(combined_rows: List[pd.Series], cover_path: Path) -> None:
-    best_idx = None
-    for i, s in enumerate(combined_rows):
-        if not bool(s.get("is_new", False)) and s.get("rank", None) == 1:
-            best_idx = i
+    best_index = None
+    for idx, row in enumerate(combined_rows):
+        if not bool(row.get("is_new", False)) and row.get("rank", None) == 1:
+            best_index = idx
             break
-    if best_idx is None:
-        best_idx = 0
+    if best_index is None:
+        best_index = 0
 
-    new_indices = [i for i, s in enumerate(combined_rows) if bool(s.get("is_new", False))]
-    new1_idx, new2_idx = new_indices[:2]
+    new_indices = [idx for idx, row in enumerate(combined_rows) if bool(row.get("is_new", False))]
+    new1_index, new2_index = new_indices[:2]
 
-    used = {best_idx, new1_idx, new2_idx}
-    remain = [i for i in range(len(combined_rows)) if i not in used]
-    bottom_indices = random.sample(remain, 3)
-    idx_order = [best_idx, new1_idx, new2_idx] + bottom_indices
-    urls = [str(combined_rows[i].get("image_url", "")).strip() for i in idx_order]
+    used_indices = {best_index, new1_index, new2_index}
+    remaining_indices = [idx for idx in range(len(combined_rows)) if idx not in used_indices]
+    bottom_indices = random.sample(remaining_indices, 3)
+    index_order = [best_index, new1_index, new2_index] + bottom_indices
+    urls = [str(combined_rows[idx].get("image_url", "")).strip() for idx in index_order]
 
     cmd = [FFMPEG_BIN, "-y"]
-    for u in urls:
-        cmd += ["-i", u]
+    for url in urls:
+        cmd += ["-i", url]
 
-    def tf(i, w, h, l):
+    def tf(stream_index: int, width: int, height: int, label: str) -> str:
         return (
-            f"[{i}:v]scale={w}:{h}:force_original_aspect_ratio=increase,"
-            f"crop={w}:{h},setsar=1[{l}]"
+            f"[{stream_index}:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
+            f"crop={width}:{height},setsar=1[{label}]"
         )
 
     filters = [
@@ -572,8 +556,6 @@ def generate_cover_image_from_rows(combined_rows: List[pd.Series], cover_path: P
     print(f"封面图片已保存: {cover_path}")
 
 
-# ==================== 十万达成滚动视频 ====================
-
 def get_cover_image_pil(url: str, bvid: str) -> Image.Image:
     VIDEOS_ROOT.mkdir(exist_ok=True)
     cover_cache = VIDEOS_ROOT / bvid / "cover.jpg"
@@ -585,9 +567,9 @@ def get_cover_image_pil(url: str, bvid: str) -> Image.Image:
 
     if url and url.startswith("http"):
         try:
-            resp = requests.get(url, timeout=5)
-            if resp.status_code == 200:
-                img = Image.open(BytesIO(resp.content)).convert("RGBA")
+            response = requests.get(url, timeout=5)
+            if response.status_code == 200:
+                img = Image.open(BytesIO(response.content)).convert("RGBA")
                 if not cover_cache.parent.exists():
                     cover_cache.parent.mkdir(parents=True)
                 img.convert("RGB").save(cover_cache)
@@ -631,26 +613,26 @@ def create_card_image(row: pd.Series) -> Image.Image:
     draw.rounded_rectangle((0, 0, CARD_W, CARD_H), radius=CARD_RADIUS, fill=bg_color)
 
     margin = 20
-    cover_h = CARD_H - 2 * margin
-    cover_w = int(cover_h * (16 / 9))
+    cover_height = CARD_H - 2 * margin
+    cover_width = int(cover_height * (16 / 9))
 
     cover_img = get_cover_image_pil(image_url, bvid)
-    cover_img = cover_img.resize((cover_w, cover_h), Image.Resampling.LANCZOS)
+    cover_img = cover_img.resize((cover_width, cover_height), Image.Resampling.LANCZOS)
 
-    mask = Image.new("L", (cover_w, cover_h), 0)
-    ImageDraw.Draw(mask).rounded_rectangle((0, 0, cover_w, cover_h), radius=15, fill=255)
+    mask = Image.new("L", (cover_width, cover_height), 0)
+    ImageDraw.Draw(mask).rounded_rectangle((0, 0, cover_width, cover_height), radius=15, fill=255)
     img.paste(cover_img, (margin, margin), mask)
 
-    text_x = margin + cover_w + 30
+    text_x = margin + cover_width + 30
     text_y = margin + 5
-    text_w = CARD_W - text_x - margin
+    text_width = CARD_W - text_x - margin
 
     font_title = ImageFont.truetype(FONT_BOLD_FILE, 34)
     font_info = ImageFont.truetype(FONT_FILE, 22)
     font_author = ImageFont.truetype(FONT_BOLD_FILE, 28)
     font_achieve = ImageFont.truetype(FONT_BOLD_FILE, 54)
 
-    title_lines = wrap_text_pil(title, font_title, text_w)
+    title_lines = wrap_text_pil(title, font_title, text_width)
     for line in title_lines[:2]:
         draw.text((text_x, text_y), line, font=font_title, fill=(20, 20, 20))
         text_y += 45
@@ -675,8 +657,8 @@ def create_header_image(
     height: int,
     opacity: float,
     ed_info: Optional[Dict[str, str]] = None,
-    list_top_y: Optional[int] = None, 
-) -> Image.Image:
+    list_top_y: Optional[int] = None,
+    ) -> Image.Image:
     img = Image.new("RGBA", (width, height), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
 
@@ -684,9 +666,9 @@ def create_header_image(
     title_font = ImageFont.truetype(FONT_BOLD_FILE, 80)
 
     title_bbox = title_font.getbbox(title)
-    title_w = title_bbox[2] - title_bbox[0]
-    title_h = title_bbox[3] - title_bbox[1]
-    title_x = (width - title_w) // 2
+    title_width = title_bbox[2] - title_bbox[0]
+    title_height = title_bbox[3] - title_bbox[1]
+    title_x = (width - title_width) // 2
     title_y = 150
 
     alpha = int(255 * opacity)
@@ -715,41 +697,39 @@ def create_header_image(
             except Exception:
                 ed_font = title_font
 
-            l1 = ed_font.getbbox(line1)
-            l2 = ed_font.getbbox(line2)
-            l1_w, l1_h = l1[2] - l1[0], l1[3] - l1[1]
-            l2_w, l2_h = l2[2] - l2[0], l2[3] - l2[1]
-            block_w = max(l1_w, l2_w)
-            block_h = l1_h + l2_h + 10
+            line1_bbox = ed_font.getbbox(line1)
+            line2_bbox = ed_font.getbbox(line2)
+            line1_width = line1_bbox[2] - line1_bbox[0]
+            line1_height = line1_bbox[3] - line1_bbox[1]
+            line2_width = line2_bbox[2] - line2_bbox[0]
+            line2_height = line2_bbox[3] - line2_bbox[1]
+            block_width = max(line1_width, line2_width)
+            block_height = line1_height + line2_height + 10
 
-            # 空白区域范围：标题下方 到 第一条卡片顶部
-            region_top = title_y + title_h + 25
+            region_top = title_y + title_height + 25
             region_bottom = list_top_y if list_top_y is not None else int(height * 0.5)
 
-            # 防止异常/倒挂/太小
             region_bottom = max(0, min(height, region_bottom))
-            if region_bottom - region_top >= block_h + 10:
-                ed_y = region_top + (region_bottom - region_top - block_h) // 2
+            if region_bottom - region_top >= block_height + 10:
+                ed_y = region_top + (region_bottom - region_top - block_height) // 2
             else:
-                # 空间不够则贴近 region_top
                 ed_y = region_top
 
             margin_right = 80
-            ed_x = width - margin_right - block_w  # ✅ 右对齐
+            ed_x = width - margin_right - block_width
 
             ed_color = (0, 0, 0, alpha)
             ed_shadow = (255, 255, 255, alpha)
 
-            # line1
             draw.text((ed_x + 2, ed_y + 2), line1, font=ed_font, fill=ed_shadow)
             draw.text((ed_x, ed_y), line1, font=ed_font, fill=ed_color)
 
-            # line2
-            y2 = ed_y + l1_h + 4
+            y2 = ed_y + line1_height + 4
             draw.text((ed_x + 2, y2 + 2), line2, font=ed_font, fill=ed_shadow)
             draw.text((ed_x, y2), line2, font=ed_font, fill=ed_color)
 
     return img
+
 
 def generate_achievement_video(
     excel_path_10w: Path,
@@ -760,39 +740,39 @@ def generate_achievement_video(
         print(f"十万记录 Excel 不存在: {excel_path_10w}")
         return False
 
-    df = pd.read_excel(excel_path_10w)
-    if df.empty:
+    df_10w = pd.read_excel(excel_path_10w)
+    if df_10w.empty:
         print("十万记录 Excel 为空, 无需生成成就视频。")
         return False
 
-    if "10w_crossed" in df.columns:
-        df = df.sort_values("10w_crossed", ascending=False)
+    if "10w_crossed" in df_10w.columns:
+        df_10w = df_10w.sort_values("10w_crossed", ascending=False)
 
-    rows = [r for _, r in df.iterrows()]
-    count = len(rows)
-    print(f"开始生成十万成就滚动视频，条目数: {count}")
+    achievement_rows = [row for _, row in df_10w.iterrows()]
+    achievement_count = len(achievement_rows)
+    print(f"开始生成十万成就滚动视频，条目数: {achievement_count}")
 
     cards: List[Image.Image] = []
-    for r in rows:
-        cards.append(create_card_image(r))
+    for row in achievement_rows:
+        cards.append(create_card_image(row))
 
-    strip_h = count * (CARD_H + CARD_GAP)
-    full_strip = Image.new("RGBA", (1080, strip_h), (0, 0, 0, 0))
+    strip_height = achievement_count * (CARD_H + CARD_GAP)
+    full_strip = Image.new("RGBA", (1080, strip_height), (0, 0, 0, 0))
 
-    for i, card_img in enumerate(cards):
-        y_pos = i * (CARD_H + CARD_GAP)
+    for idx, card_img in enumerate(cards):
+        y_pos = idx * (CARD_H + CARD_GAP)
         x_pos = (1080 - CARD_W) // 2
         full_strip.paste(card_img, (x_pos, y_pos))
 
-    FPS = 60
+    fps = 60
     width, height = 1080, 1920
 
     initial_list_top_y = 800
-    total_scroll_distance = initial_list_top_y + strip_h
+    total_scroll_distance = initial_list_top_y + strip_height
 
     scroll_duration = total_scroll_distance / SCROLL_SPEED_PPS
     total_duration = SCROLL_HOLD_TIME + scroll_duration + 0.5
-    total_frames = int(total_duration * FPS)
+    total_frames = int(total_duration * fps)
 
     ed_info = get_ed_info(issue_index)
     bgm_bvid = ed_info["bvid"] if ed_info and ed_info.get("bvid") else None
@@ -833,15 +813,15 @@ def generate_achievement_video(
         "-pix_fmt",
         "rgba",
         "-r",
-        str(FPS),
+        str(fps),
         "-i",
         "-",
     ]
 
     cmd += audio_input_args
 
-    fade_out_st = max(0, total_duration - 1.0)
-    af_str = f"afade=t=in:st=0:d=1,afade=t=out:st={fade_out_st:.3f}:d=1"
+    fade_out_start = max(0, total_duration - 1.0)
+    af_str = f"afade=t=in:st=0:d=1,afade=t=out:st={fade_out_start:.3f}:d=1"
 
     cmd += [
         "-map",
@@ -850,16 +830,9 @@ def generate_achievement_video(
         audio_map,
         "-af",
         af_str,
-        "-c:v",
-        "libx264",
-        "-preset",
-        "ultrafast",
-        "-pix_fmt",
-        "yuv420p",
-        "-c:a",
-        "aac",
-        "-b:a",
-        "192k",
+    ]
+    add_x264_encode_args(cmd)
+    cmd += [
         "-t",
         f"{total_duration:.3f}",
         str(output_video),
@@ -867,12 +840,12 @@ def generate_achievement_video(
         "error",
     ]
 
-    proc = subprocess.Popen(cmd, stdin=subprocess.PIPE)
+    process = subprocess.Popen(cmd, stdin=subprocess.PIPE)
     bg_base = Image.new("RGBA", (width, height), SCROLL_BG_COLOR)
 
     try:
-        for f in range(total_frames):
-            t = f / FPS
+        for frame_index in range(total_frames):
+            t = frame_index / fps
 
             if t < SCROLL_HOLD_TIME:
                 curr_strip_y = float(initial_list_top_y)
@@ -890,48 +863,46 @@ def generate_achievement_video(
             frame = bg_base.copy()
             paste_y = int(curr_strip_y)
 
-            if paste_y < height and (paste_y + strip_h) > 0:
+            if paste_y < height and (paste_y + strip_height) > 0:
                 frame.paste(full_strip, (0, paste_y), full_strip)
 
             if header_opacity > 0:
                 header_img = create_header_image(width, height, header_opacity, ed_info, list_top_y=paste_y)
                 frame.alpha_composite(header_img)
 
-            proc.stdin.write(frame.tobytes())
+            process.stdin.write(frame.tobytes())
 
-            if f % 60 == 0:
+            if frame_index % 60 == 0:
                 print(f"\r正在渲染十万成就视频: {t:.1f}/{total_duration:.1f}s", end="")
 
-        proc.stdin.close()
-        proc.wait()
-        print("\n十万成就滚动视频生成完成。")
+        process.stdin.close()
+        process.wait()
+        print("十万成就滚动视频生成完成。")
         return True
 
-    except Exception as e:
-        print(f"生成十万成就视频时出错: {e}")
+    except Exception as exc:
+        print(f"生成十万成就视频时出错: {exc}")
         try:
-            proc.stdin.close()
+            process.stdin.close()
         except Exception:
             pass
         return False
 
 
-# ==================== 视频合并 ====================
-
-def concat_clips(clip_paths: List[Path], output_path: Path, issue_date_str: str) -> None:
+def concat_clips(clip_paths: List[Path], output_path: Path) -> None:
     if not clip_paths:
         return
 
     DAILY_VIDEO_DIR.mkdir(exist_ok=True)
-    print("\n正在拼接所有片段（重编码以保证音画同步）...")
+    print("正在拼接所有片段...")
 
     cmd = [FFMPEG_BIN, "-y"]
-    for p in clip_paths:
-        cmd += ["-i", str(p)]
+    for path in clip_paths:
+        cmd += ["-i", str(path)]
 
-    n = len(clip_paths)
-    va_inputs = "".join(f"[{i}:v][{i}:a]" for i in range(n))
-    filter_complex = f"{va_inputs}concat=n={n}:v=1:a=1[v][a]"
+    clip_count = len(clip_paths)
+    va_inputs = "".join(f"[{i}:v][{i}:a]" for i in range(clip_count))
+    filter_complex = f"{va_inputs}concat=n={clip_count}:v=1:a=1[v][a]"
 
     cmd += [
         "-filter_complex",
@@ -940,18 +911,10 @@ def concat_clips(clip_paths: List[Path], output_path: Path, issue_date_str: str)
         "[v]",
         "-map",
         "[a]",
-        "-c:v",
-        "libx264",
-        "-preset",
-        "fast",
-        "-crf",
-        "20",
-        "-pix_fmt",
-        "yuv420p",
-        "-c:a",
-        "aac",
-        "-b:a",
-        "192k",
+    ]
+    add_x264_encode_args(cmd)
+
+    cmd += [
         "-movflags",
         "+faststart",
         str(output_path),
@@ -961,18 +924,16 @@ def concat_clips(clip_paths: List[Path], output_path: Path, issue_date_str: str)
 
     try:
         subprocess.run(cmd, check=True)
-        print(f"\n最终合成视频已保存: {output_path}")
-    except subprocess.CalledProcessError as e:
-        print(f"片段拼接失败: {e}")
+        print(f"最终合成视频已保存: {output_path}")
+    except subprocess.CalledProcessError as exc:
+        print(f"片段拼接失败: {exc}")
 
-    for p in clip_paths:
+    for path in clip_paths:
         try:
-            p.unlink()
+            path.unlink()
         except Exception:
             pass
 
-
-# ==================== 主流程 ====================
 
 def main() -> None:
     VIDEOS_ROOT.mkdir(exist_ok=True)
@@ -988,46 +949,46 @@ def main() -> None:
 
     count_map: Dict[str, int] = {}
     if "count" in df_total.columns:
-        for _, r in df_total.iterrows():
-            b = str(r.get("bvid", "")).strip()
-            if b:
-                count_map[b] = r.get("count", 0)
+        for _, row in df_total.iterrows():
+            bvid = str(row.get("bvid", "")).strip()
+            if bvid:
+                count_map[bvid] = row.get("count", 0)
 
     newsong_excel = get_newsong_excel_for(excel_path, NEW_SONG_DIR)
     print(f"使用新曲榜 Excel: {newsong_excel}")
     df_new = pd.read_excel(newsong_excel)
     df_new_sorted = df_new.sort_values("rank", ascending=True) if "rank" in df_new.columns else df_new
 
-    top_bvids = {str(b).strip() for b in df_top["bvid"].astype(str)}
+    top_bvids = {str(bvid).strip() for bvid in df_top["bvid"].astype(str)}
     new_rows_raw: List[pd.Series] = []
-    for _, r in df_new_sorted.iterrows():
-        b = str(r.get("bvid", "")).strip()
-        if b and b not in top_bvids:
-            new_rows_raw.append(r)
+    for _, row in df_new_sorted.iterrows():
+        bvid = str(row.get("bvid", "")).strip()
+        if bvid and bvid not in top_bvids:
+            new_rows_raw.append(row)
             if len(new_rows_raw) >= 2:
                 break
 
     combined_rows: List[pd.Series] = []
-    for r in new_rows_raw:
-        s = r.copy()
-        s["is_new"] = True
-        b = str(s.get("bvid", "")).strip()
-        s["count"] = count_map.get(b, 0) if b else 0
-        combined_rows.append(s)
+    for row in new_rows_raw:
+        series_copy = row.copy()
+        series_copy["is_new"] = True
+        bvid = str(series_copy.get("bvid", "")).strip()
+        series_copy["count"] = count_map.get(bvid, 0) if bvid else 0
+        combined_rows.append(series_copy)
 
     for _, row in df_top.iterrows():
-        s = row.copy()
-        s["is_new"] = False
-        combined_rows.append(s)
+        series_copy = row.copy()
+        series_copy["is_new"] = False
+        combined_rows.append(series_copy)
 
     tasks = [(idx + 1, row.to_dict()) for idx, row in enumerate(combined_rows)]
     index_to_path: Dict[int, Path] = {}
 
     def worker(idx_row: Tuple[int, dict]) -> Tuple[int, Optional[Path]]:
         idx, row_dict = idx_row
-        row = pd.Series(row_dict)
+        series_row = pd.Series(row_dict)
         clip_path = generate_clip_with_overlay(
-            row=row,
+            row=series_row,
             clip_index=idx,
             clip_duration=CLIP_DURATION,
             issue_date_str=issue_date_str,
@@ -1035,9 +996,9 @@ def main() -> None:
         return idx, clip_path
 
     with ThreadPoolExecutor(max_workers=5) as executor:
-        future_to_task = {executor.submit(worker, t): t for t in tasks}
-        for fut in as_completed(future_to_task):
-            idx, clip_path = fut.result()
+        future_to_task = {executor.submit(worker, task): task for task in tasks}
+        for future in as_completed(future_to_task):
+            idx, clip_path = future.result()
             if clip_path:
                 index_to_path[idx] = clip_path
 
@@ -1065,7 +1026,7 @@ def main() -> None:
         print("检测到十万成就，附加成就视频到总榜视频末尾。")
         all_clips.append(achieve_video_path)
 
-    concat_clips(all_clips, final_video_path, issue_date_str)
+    concat_clips(all_clips, final_video_path)
 
 
 if __name__ == "__main__":
