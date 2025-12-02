@@ -194,6 +194,72 @@ def add_x264_encode_args(cmd: List[str]) -> None:
         "192k",
     ]
 
+def generate_cover_image_3_4_from_rows(combined_rows: List[pd.Series], cover_path: Path) -> None:
+    """
+    生成 3:4 封面：
+    - 使用 3 张 16:9 封面（1920x1080）
+    - 上：第二名 / 第二张
+    - 中：第一名 / 第一张
+    - 下：第三张
+    - 最后整体裁剪成 1920x2560（3:4）
+    """
+    normal_rows = [r for r in combined_rows if not bool(r.get("is_new", False))]
+
+    def rank_key(r: pd.Series):
+        v = r.get("rank", None)
+        try:
+            return int(v)
+        except Exception:
+            return 999999
+
+    normal_rows_sorted = sorted(normal_rows, key=rank_key)
+    rows3: List[pd.Series] = normal_rows_sorted[:3]
+
+    urls = [str(r.get("image_url", "")).strip() for r in rows3]
+    urls = [u for u in urls if u]  # 过滤空 url
+
+    while len(urls) < 3:
+        urls.append(urls[-1])
+
+    urls = urls[:3]
+
+    cmd = [FFMPEG_BIN, "-y"]
+    for u in urls:
+        cmd += ["-i", u]
+
+    out_w = 1920
+    out_h = 2560
+
+    filter_lines = [
+        "[0:v]scale=1920:1080:force_original_aspect_ratio=increase,"
+        "crop=1920:1080,setsar=1[v0]",
+        "[1:v]scale=1920:1080:force_original_aspect_ratio=increase,"
+        "crop=1920:1080,setsar=1[v1]",
+        "[2:v]scale=1920:1080:force_original_aspect_ratio=increase,"
+        "crop=1920:1080,setsar=1[v2]",
+        "[v1][v0][v2]vstack=inputs=3[vstack]",
+        f"[vstack]crop={out_w}:{out_h}:0:(in_h-{out_h})/2[vout]",
+    ]
+
+    cmd += [
+        "-filter_complex",
+        ";".join(filter_lines),
+        "-map",
+        "[vout]",
+        "-frames:v",
+        "1",
+        "-q:v",
+        "2",
+        str(cover_path),
+        "-loglevel",
+        "error",
+    ]
+
+    try:
+        subprocess.run(cmd, check=True)
+        print(f"3:4 封面图片已保存: {cover_path}")
+    except subprocess.CalledProcessError as e:
+        print(f"3:4 封面生成失败: {e}")
 
 def download_bilibili_video(bvid: str) -> Optional[Path]:
     import yt_dlp
@@ -1009,7 +1075,8 @@ def main() -> None:
     all_clips = [index_to_path[i] for i in sorted(index_to_path.keys())]
     cover_path = DAILY_VIDEO_DIR / f"{issue_index}_{issue_date_str}_cover.jpg"
     generate_cover_image_from_rows(combined_rows, cover_path)
-
+    cover_path_3_4 = DAILY_VIDEO_DIR / f"{issue_index}_{issue_date_str}_cover_3-4.jpg"
+    generate_cover_image_3_4_from_rows(combined_rows, cover_path_3_4)
     achieve_excel_name = f"十万记录{excel_date_str}与{issue_date_str}.xlsx"
     achieve_excel_path = ACHIEVEMENT_DIR / achieve_excel_name
     achieve_video_path = DAILY_VIDEO_DIR / f"tmp_achievement_{issue_date_str}.mp4"

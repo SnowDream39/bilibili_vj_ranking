@@ -195,7 +195,7 @@ def main() -> None:
     bvid = extract_bvid(out)
     print(f"\n投稿成功，BV 号：{bvid}")
 
-    print("\n全部完成 ✅")
+    print("\n全部完成")
 
 
 if __name__ == "__main__":
