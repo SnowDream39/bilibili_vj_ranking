@@ -2,6 +2,7 @@
 # SSH/SFTP工具模块，用于连接远程服务器、上传文件和执行命令。
 import paramiko
 import os
+from utils.logger import logger
 
 def connect_ssh(host, port, username, password):
     """建立与远程服务器的SSH连接。
@@ -45,13 +46,13 @@ def upload_files(sftp, local_files, remote_path):
                 remote_file = f"{remote_path}/{filename}"
                 # 执行上传操作
                 sftp.put(local_path, remote_file)
-                print(f"成功上传: {filename} 到 {remote_path}")
+                logger.info(f"成功上传: {filename} 到 {remote_path}")
                 results['success'].append(local_path)
             except Exception as e:
-                print(f"上传失败: {filename}，错误: {e}")
+                logger.error(f"上传失败: {filename}，错误: {e}")
                 results['failed'].append(local_path)
         else:
-            print(f"文件不存在，跳过: {local_path}")
+            logger.error(f"文件不存在，跳过: {local_path}")
             results['failed'].append(local_path)
     return results
 
@@ -74,7 +75,7 @@ def execute_remote_command(ssh, command):
     # 仅在命令执行失败时读取标准错误
     error = stderr.read().decode('utf-8', errors='ignore') if exit_status != 0 else None
     
-    print("远程命令执行完毕。")
+    logger.info("远程命令执行完毕。")
     return {
         'exit_status': exit_status,
         'output': output,
@@ -95,9 +96,9 @@ def run_task(ssh, sftp, local_files, remote_command, remote_path):
     upload_files(sftp, local_files, remote_path)
     # 第二步：执行远程命令
     command_result = execute_remote_command(ssh, remote_command)
-    print(command_result['output'])
+    logger.info(command_result['output'])
     if command_result['exit_status'] != 0:
-        print("错误信息：", command_result['error'])
+        logger.error("错误信息：", command_result['error'])
 
 def close_connections(sftp=None, ssh=None):
     """安全地关闭SFTP和SSH连接。

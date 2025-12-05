@@ -9,7 +9,7 @@ from utils.logger import logger
 
 def save_to_excel(df: pd.DataFrame, filename: Union[str, Path], 
                   usecols: Optional[List[str]] = None, 
-                  row_styles: Optional[Dict[int, str]] = None): # 新增 row_styles 参数
+                  row_styles: Optional[Dict[int, str]] = None): 
     """
     保存DataFrame到Excel文件
        
