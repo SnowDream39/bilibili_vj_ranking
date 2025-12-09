@@ -5,7 +5,7 @@ from typing import Optional
 import subprocess
 import pandas as pd
 from utils.logger import logger
-from utils.video_downloader import VideoDownloader
+from src.bilibili_api_client import BilibiliApiClient
 from utils.climax_clipper import find_climax_segment
 from utils.clip_overlay import build_clip_overlay_cmd
 
@@ -13,14 +13,14 @@ class ClipFlow:
     def __init__(
         self,
         *,
-        video_downloader: VideoDownloader,
+        api_client: BilibiliApiClient,
         daily_video_dir: Path,
         icon_dir: Path,
         ffmpeg_bin: str,
         font_regular: str,
         font_bold: str,
     ) -> None:
-        self.video_downloader = video_downloader
+        self.api_client = api_client
         self.daily_video_dir = daily_video_dir
         self.icon_dir = icon_dir
         self.ffmpeg_bin = ffmpeg_bin
@@ -37,7 +37,7 @@ class ClipFlow:
         ]
 
     def _ensure_segment(self, bvid: str, clip_duration: float) -> Optional[Path]:
-        cached_video = self.video_downloader.download_video(bvid)
+        cached_video = self.api_client.download_video(bvid)
         if not cached_video:
             return None
 
@@ -47,7 +47,7 @@ class ClipFlow:
         if cached_segment.exists():
             return cached_segment
 
-        audio_path = self.video_downloader.ensure_audio(bvid, cached_video)
+        audio_path = self.api_client.ensure_audio(bvid, cached_video)
         if not audio_path:
             return None
 

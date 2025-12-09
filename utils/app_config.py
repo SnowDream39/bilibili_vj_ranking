@@ -1,4 +1,4 @@
-# utils/config.py
+# utils/app_config.py
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict
@@ -43,7 +43,7 @@ class UiConfig:
 
 @dataclass(frozen=True)
 class AppConfig:
-    project_root: Path  # 方便访问根目录
+    project_root: Path
     paths: PathsConfig
     fonts: FontsConfig
     ffmpeg: FfmpegConfig
@@ -51,11 +51,11 @@ class AppConfig:
     ui: UiConfig
 
 def load_app_config(config_path: Path = VIDEO_CONFIG_PATH) -> AppConfig:
+    """加载视频生成相关的应用配置"""
     with open(config_path, "r", encoding="utf-8") as f:
         raw: Dict[str, Any] = yaml.safe_load(f)
 
     p = raw["paths"]
-    # 自动拼接 PROJECT_ROOT
     paths = PathsConfig(
         total_dir=PROJECT_ROOT / p["total_dir"],
         newsong_dir=PROJECT_ROOT / p["newsong_dir"],
@@ -78,7 +78,6 @@ def load_app_config(config_path: Path = VIDEO_CONFIG_PATH) -> AppConfig:
     )
 
     u = raw["ui"]
-    # 确保颜色是 tuple
     c = u["scroll_bg_color"]
     bg_color = tuple(c) if len(c) == 4 else (c[0], c[1], c[2], 255)
     

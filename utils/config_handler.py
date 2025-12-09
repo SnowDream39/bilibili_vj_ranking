@@ -1,10 +1,10 @@
 # utils/config_handler.py
 # 配置处理器模块：管理项目配置和日期处理
 from pathlib import Path
+from typing import Optional
 import yaml
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
-from typing import Optional
 
 class ConfigHandler:
     """
@@ -181,5 +181,3 @@ class ConfigHandler:
             "now_date": now_day.strftime('%Y%m%d'),
             "old_date": old_day.strftime('%Y%m%d')
         }
-    
-   

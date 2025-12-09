@@ -1,6 +1,8 @@
 # src/bilibili_api_client.py
 import asyncio
 import aiohttp
+import subprocess
+from pathlib import Path
 from bilibili_api import request_settings, search
 from datetime import datetime
 import random
@@ -13,14 +15,25 @@ from utils.dataclass import Config, SearchOptions, SearchRestrictions
 
 class BilibiliApiClient:
     """
-    B站API客户端，负责所有网络请求。
+    B站统一客户端：负责 API 请求 (Metadata) 和 视频下载 (Media)。
     """
-    def __init__(self, config: Config, proxy: Optional[Proxy] = None):
+    def __init__(
+        self, 
+        config: Config, 
+        proxy: Optional[Proxy] = None, 
+        videos_root: Optional[Path] = None,
+        ffmpeg_bin: Optional[str] = "ffmpeg"
+    ):
         self.config = config
         self.proxy = proxy
         self.session: Optional[aiohttp.ClientSession] = None
         self.sem = asyncio.Semaphore(config.SEMAPHORE_LIMIT)
         self.retry_handler = RetryHandler(config.MAX_RETRIES, config.SLEEP_TIME)
+        
+        self.videos_root = videos_root
+        self.ffmpeg_bin = ffmpeg_bin
+        if self.videos_root:
+            self.videos_root.mkdir(parents=True, exist_ok=True)
 
         if self.proxy:
             request_settings.set_proxy(self.proxy.proxy_server)
@@ -186,3 +199,71 @@ class BilibiliApiClient:
             page += 1
             await asyncio.sleep(self.config.SLEEP_TIME)
         return all_videos
+
+    def download_video(self, bvid: str) -> Optional[Path]:
+        """下载视频 (同步方法，因 yt-dlp 是阻塞的)"""
+        if not self.videos_root:
+            logger.error("未配置 videos_root，无法下载视频")
+            return None
+            
+        import yt_dlp
+
+        bvid_dir = self.videos_root / bvid
+        bvid_dir.mkdir(exist_ok=True)
+
+        cached_video = bvid_dir / f"{bvid}.mp4"
+        if cached_video.exists():
+            return cached_video
+
+        logger.info(f"开始下载视频: {bvid}")
+        url = f"https://www.bilibili.com/video/{bvid}"
+        out_template = bvid_dir / f"{bvid}.%(ext)s"
+
+        ydl_opts = {
+            "format": "bv*+ba/best",
+            "outtmpl": str(out_template),
+            "quiet": True,
+            "no_warnings": True,
+        }
+
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                ydl.extract_info(url, download=True)
+
+            candidates = [p for p in bvid_dir.glob(f"{bvid}.*") if p.suffix.lower() == ".mp4"]
+            if not candidates:
+                return None
+
+            video_path = candidates[0]
+            # 重命名确保标准文件名
+            if video_path != cached_video:
+                video_path.rename(cached_video)
+
+            logger.info(f"[{bvid}] 下载完成并缓存: {cached_video}")
+            return cached_video
+        except Exception as e:
+            logger.error(f"[{bvid}] 下载失败: {e}")
+            return None
+
+    def ensure_audio(self, bvid: str, cached_video: Path) -> Optional[Path]:
+        """从视频提取音频"""
+        if not self.ffmpeg_bin:
+            logger.error("未配置 ffmpeg_bin，无法提取音频")
+            return None
+            
+        bvid_dir = cached_video.parent
+        cached_audio = bvid_dir / f"{bvid}.wav"
+        if cached_audio.exists():
+            return cached_audio
+
+        cmd = [
+            self.ffmpeg_bin, "-y",
+            "-i", str(cached_video),
+            "-vn", "-ac", "1", "-ar", "22050",
+            str(cached_audio), "-loglevel", "error",
+        ]
+        try:
+            subprocess.run(cmd, check=True)
+            return cached_audio
+        except Exception:
+            return None

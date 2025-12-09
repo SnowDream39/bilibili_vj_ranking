@@ -13,6 +13,43 @@ def _normalize(x: np.ndarray) -> np.ndarray:
     return (x - min_v) / (max_v - min_v)
 
 
+def _compute_vocaloid_activity(
+    y: np.ndarray,
+    sr: int,
+    hop_length: int = 512
+) -> np.ndarray:
+    """
+    检测VOCALOID/合成人声活跃度。
+    
+    策略：
+    1. 频谱通量（Spectral Flux）：旋律变化越快，得分越高
+    2. 频谱平坦度（Spectral Flatness）：越低说明有明确音高（不是噪音/纯打击乐）
+    3. 中频段能量：V家人声主要集中在中频
+    
+    Returns:
+        np.ndarray: 每帧的VOCALOID活跃度 [0, 1]
+    """
+    # 1. 计算短时傅里叶变换
+    stft = librosa.stft(y, hop_length=hop_length)
+    mag = np.abs(stft)
+    flux = np.sum(np.diff(mag, axis=1)**2, axis=0)
+    flux = np.concatenate([[0], flux])  # 补齐长度
+    flux_n = _normalize(flux)
+    flatness = librosa.feature.spectral_flatness(y=y, hop_length=hop_length)[0]
+    # 反转：平坦度低 -> 得分高
+    tonal_score = 1.0 - flatness
+    tonal_n = _normalize(tonal_score)
+    
+    freqs = librosa.fft_frequencies(sr=sr)
+    mid_freq_mask = (freqs >= 500) & (freqs <= 4000)
+    mid_energy = np.mean(mag[mid_freq_mask, :], axis=0)
+    mid_n = _normalize(mid_energy)
+    
+    vocaloid_score = 0.4 * flux_n + 0.3 * tonal_n + 0.3 * mid_n
+    
+    return vocaloid_score
+
+
 def _compute_block_chroma_repetition(
     y: np.ndarray,
     sr: int,
@@ -58,18 +95,24 @@ def find_climax_segment(
     """
     y, sr = librosa.load(audio_path, sr=None, mono=True)
 
-    # 帧级特征: RMS(响度) + onset envelope(节奏强度)
+    # 1. 基础特征
     rms = librosa.feature.rms(y=y, hop_length=hop_length)[0]
     onset_env = librosa.onset.onset_strength(y=y, sr=sr, hop_length=hop_length)
+    
+    # 2. VOCALOID活跃度
+    vocaloid_activity = _compute_vocaloid_activity(y, sr, hop_length)
 
-    min_len = min(len(rms), len(onset_env))
+    # 对齐长度
+    min_len = min(len(rms), len(onset_env), len(vocaloid_activity))
     rms = rms[:min_len]
     onset_env = onset_env[:min_len]
+    vocaloid_activity = vocaloid_activity[:min_len]
 
     rms_n = _normalize(rms)
     onset_n = _normalize(onset_env)
+    vocaloid_n = _normalize(vocaloid_activity)
 
-    # 块级重复度: 类似“副歌度”
+    # 3. 块级重复度
     rep_block, block_times = _compute_block_chroma_repetition(y, sr, block_sec=1.0)
     if len(rep_block) == 0:
         rep_block = np.zeros(1)
@@ -80,31 +123,39 @@ def find_climax_segment(
     rep_frame = np.interp(frame_times, block_times, rep_block)
     rep_n = _normalize(rep_frame)
 
-    # 响度 + 节奏起伏 + 重复度
-    alpha_rms = 0.45
-    alpha_onset = 0.35
-    alpha_rep = 0.20    
-    combined_score = alpha_rms * rms_n + alpha_onset * onset_n + alpha_rep * rep_n
+    # 4. 综合打分
+    # VOCALOID旋律性 > 响度 > 节奏 > 重复度
+    alpha_vocaloid = 0.40
+    alpha_rms = 0.30
+    alpha_onset = 0.20
+    alpha_rep = 0.10
+    
+    combined_score = (
+        alpha_vocaloid * vocaloid_n +
+        alpha_rms * rms_n +
+        alpha_onset * onset_n +
+        alpha_rep * rep_n
+    )
 
     frames_per_sec = sr / hop_length
     window_frames = int(clip_duration * frames_per_sec)
     duration = len(y) / sr
 
     if window_frames <= 1 or window_frames >= len(combined_score):
-        # 过短直接裁整曲或前 clip_duration 秒
         return 0.0, min(float(duration), clip_duration)
 
-    # 滑动窗口打分: mode='valid' 对应每个“窗口起点”的得分
+    # 5. 滑动窗口打分
     kernel = np.ones(window_frames, dtype=float)
     window_scores = np.convolve(combined_score, kernel, mode="valid")
     start_frame_idx = np.arange(len(window_scores))
     start_times = librosa.frames_to_time(start_frame_idx, sr=sr, hop_length=hop_length)
 
-    # 位置约束: 避开开头和结尾的非高潮区域
-    start_margin = 5.0   # 前 5 秒不作为窗口起点
-    end_margin = 5.0     # 末尾保留 5 秒不作为窗口起点
-    max_ratio = 2.0 / 3.0 
+    # 6. 位置约束
+    start_margin = 5.0
+    end_margin = 5.0
+    max_ratio = 2.0 / 3.0
     total_margin = start_margin + end_margin
+    
     if duration <= clip_duration + total_margin:
         min_start = 0.0
         max_start = max(0.0, duration - clip_duration)
@@ -123,15 +174,15 @@ def find_climax_segment(
     rough_start = float(start_times[best_idx])
     rough_start = max(0.0, min(rough_start, max_start))
     rough_end = rough_start + clip_duration
+    
     if rough_end > duration:
         rough_start = max(0.0, duration - clip_duration)
         rough_end = duration
 
-    # 节拍/起音对齐
-    search_back = 1.0      # 允许向前回溯的最大时间(秒)
-    search_forward = 1.0   # 向后搜索节拍/起音的最大时间(秒)
+    # 7. 节拍对齐
+    search_back = 1.0
+    search_forward = 1.0
 
-    # 优先使用节拍对齐
     tempo, beat_frames = librosa.beat.beat_track(
         onset_envelope=onset_env,
         sr=sr,
@@ -143,13 +194,11 @@ def find_climax_segment(
 
     final_start = rough_start
     if len(candidate_beats) > 0:
-        # 优先选择略不早于 rough_start 的节拍，没有则在候选中就近选择
         near_beats = candidate_beats[candidate_beats >= rough_start - 0.05]
         if len(near_beats) == 0:
             near_beats = candidate_beats
         final_start = float(near_beats[np.argmin(np.abs(near_beats - rough_start))])
     else:
-        # 无明显节拍时退回起音对齐
         onset_frames = librosa.onset.onset_detect(
             onset_envelope=onset_env,
             sr=sr,
@@ -163,7 +212,6 @@ def find_climax_segment(
             final_start = float(candidate_onsets[np.argmin(np.abs(candidate_onsets - rough_start))])
 
     final_start = max(0.0, min(final_start, max_start))
-    # 略微提前，避免切掉音头
     final_start = max(0.0, final_start - 0.03)
     final_end = min(float(duration), final_start + clip_duration)
 
