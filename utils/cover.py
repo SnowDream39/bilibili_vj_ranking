@@ -4,6 +4,7 @@ from typing import List, Optional, Dict
 from io import BytesIO
 import random
 import subprocess
+from datetime import datetime
 import pandas as pd
 import requests
 from PIL import Image, ImageDraw, ImageFont
@@ -35,9 +36,26 @@ class Cover:
         self.card_w = card_width
         self.card_h = card_height
         self.card_radius = card_radius
-        self.ffmpeg_bin = ffmpeg_bin # 保存 ffmpeg 路径
+        self.ffmpeg_bin = ffmpeg_bin
         
         self.videos_root.mkdir(exist_ok=True)
+        
+        # 星期主题色映射 (周一=0, 周日=6)
+        self.weekday_colors = {
+            0: "#8C4E70",  # 周一
+            1: "#D66547",  # 周二
+            2: "#595959",  # 周三
+            3: "#4992A7",  # 周四
+            4: "#BDBDBD",  # 周五
+            5: "#C48700",  # 周六
+            6: "#55CCCC",  # 周日
+        }
+
+    def _get_theme_color(self, issue_date: str) -> str:
+        """根据期刊日期（YYYYMMDD）返回当天的主题色"""
+        date_obj = datetime.strptime(issue_date, "%Y%m%d")
+        weekday = date_obj.weekday()  
+        return self.weekday_colors.get(weekday, "#55CCCC")
 
     def select_cover_urls_3_4(self, combined_rows: List[pd.Series]) -> List[str]:
         if not combined_rows:
@@ -105,70 +123,147 @@ class Cover:
         urls = [str(combined_rows[i].get("image_url", "")).strip() for i in final_indices]
         return [u for u in urls if u]
 
-    def generate_grid_cover(self, urls: List[str], output_path: Path):
-        """生成 16:9 网格封面"""
+    def generate_grid_cover(
+        self, 
+        urls: List[str], 
+        output_path: Path, 
+        issue_date: str = "", 
+        issue_index: int = 0
+    ):
+        """生成 16:9 风格封面"""
         if not urls:
             logger.warning("封面生成失败：没有可用的封面 URL")
             return
 
+        display_urls = urls[:6]
+        while len(display_urls) < 6:
+            display_urls.append(display_urls[-1])
+
+        theme_color = self._get_theme_color(issue_date)
+        font_path = ffmpeg_escape_path(self.font_bold_file)
+
         cmd = [self.ffmpeg_bin, "-y"]
-        for url in urls:
+        for url in display_urls:
             cmd += ["-i", url]
 
-        def tf(stream_index: int, width: int, height: int, label: str) -> str:
-            return (
-                f"[{stream_index}:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
-                f"crop={width}:{height},setsar=1,"
-                f"drawbox=t=6:c=white[{label}]"
+        filters = []
+        
+        #图片处理
+        filters.append(
+            f"[0:v]scale=1000:562:force_original_aspect_ratio=increase,crop=1000:562,setsar=1,"
+            f"pad=1024:586:12:12:white[v0_raw]"
+        )
+        filters.append(
+            f"[1:v]scale=800:450:force_original_aspect_ratio=increase,crop=800:450,setsar=1,"
+            f"pad=824:474:12:12:white[v1_raw]"
+        )
+        for i in range(2, 6):
+            filters.append(
+                f"[{i}:v]scale=420:236:force_original_aspect_ratio=increase,crop=420:236,setsar=1,"
+                f"pad=436:252:8:8:white[v{i}_raw]"
             )
 
-        filters = [
-            tf(0, 1280, 720, "v0"),
-            tf(1, 640, 360, "v1"),
-            tf(2, 640, 360, "v2"),
-            tf(3, 640, 360, "v3"),
-            tf(4, 640, 360, "v4"),
-            tf(5, 640, 360, "v5"),
-            "[v0][v1][v2][v3][v4][v5]xstack=inputs=6:layout="
-            "0_0|1280_0|1280_360|0_720|640_720|1280_720[bg]",
-        ]
-        
-        font_path = ffmpeg_escape_path(self.font_bold_file)
-        
-        text1 = "虚拟歌手日刊"
-        text2 = "外语排行榜"
-        fill_color = "white@0.95"
-        border_color = "#55CCCC"
-        border_w = 12
-        font_size_1 = 160
-        font_size_2 = 110
-        
-        font_obj = ImageFont.truetype(self.font_bold_file, font_size_1)
-        w1 = font_obj.getlength(text1)
+        #坐标
+        pos = {
+            # 小图层
+            "v2": {"x": 68,   "y": 290},
+            "v3": {"x": 524,  "y": 290},
+            "v4": {"x": 980,  "y": 290},
+            "v5": {"x": 1436, "y": 290},
+            
+            # 大图层
+            "v0": {"x": 80,   "y": 460},
+            "v1": {"x": 1016, "y": 570}, 
+        }
 
-
-        right_anchor_x = (1920 / 2) + (w1 / 2)
-        base_y = 550
-        
-        draw_t1 = (
-            f"drawtext=fontfile='{font_path}':text='{text1}':"
-            f"fontsize={font_size_1}:fontcolor={fill_color}:"
-            f"borderw={border_w}:bordercolor={border_color}:"
-            f"x={right_anchor_x}-tw:y={base_y}:"
-            f"shadowx=5:shadowy=5:shadowcolor=black@0.5"
+        filters.append(
+            f"[0:v]scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,"
+            f"gblur=sigma=30,"
+            f"eq=saturation=1.4:brightness=-0.05,"
+            f"drawbox=c=white@0.1:t=fill[bg_blur]"
         )
         
-        gap = 20
-        draw_t2 = (
-            f"drawtext=fontfile='{font_path}':text='{text2}':"
-            f"fontsize={font_size_2}:fontcolor={fill_color}:"
-            f"borderw={border_w}:bordercolor={border_color}:"
-            f"x={right_anchor_x}-tw:y={base_y + font_size_1 + gap}:"
-            f"shadowx=3:shadowy=3:shadowcolor=black@0.5"
+        shadow_cmds = []
+        shadow_cmds.append(
+            f"drawbox=x={pos['v0']['x']+12}:y={pos['v0']['y']+12}:w=1024:h=586:c=black@0.2:t=fill"
+        )
+        shadow_cmds.append(
+            f"drawbox=x={pos['v1']['x']+12}:y={pos['v1']['y']+12}:w=824:h=474:c=black@0.2:t=fill"
+        )
+        for k in ["v2", "v3", "v4", "v5"]:
+            shadow_cmds.append(
+                f"drawbox=x={pos[k]['x']+10}:y={pos[k]['y']+10}:w=436:h=252:c=black@0.25:t=fill"
+            )
+        
+        shadow_str = ",".join(shadow_cmds) + ",gblur=sigma=25"
+        filters.append(f"[bg_blur]{shadow_str}[bg_shadow]")
+
+        current = "bg_shadow"
+        for i, k in enumerate(["v2", "v3", "v4", "v5"]):
+            nxt = f"l_s_{i}"
+            src_label = f"{k}_raw"
+            filters.append(f"[{current}][{src_label}]overlay=x={pos[k]['x']}:y={pos[k]['y']}[{nxt}]")
+            current = nxt
+            
+        filters.append(f"[{current}][v0_raw]overlay=x={pos['v0']['x']}:y={pos['v0']['y']}[l_main]")
+        filters.append(f"[l_main][v1_raw]overlay=x={pos['v1']['x']}:y={pos['v1']['y']}[l_final_img]")
+        filters.append(
+            f"[l_final_img]drawbox=x=0:y=0:w=1920:h=260:color={theme_color}:t=fill[banner]"
         )
         
-        filters.append(f"[bg]{draw_t1}[tmp1]")
-        filters.append(f"[tmp1]{draw_t2}[vout]")
+        # 解析日期
+        if issue_date:
+            try:
+                date_obj = datetime.strptime(issue_date, "%Y%m%d")
+                month = date_obj.strftime("%m")
+                day = date_obj.strftime("%d")
+            except:
+                month, day = "12", "09"
+        else:
+            month, day = "12", "09"
+
+        # 分割线
+        filters.append(
+            f"[banner]drawbox=x=770:y=50:w=6:h=180:color=white@0.7:t=fill[deco]"
+        )
+
+        # 日期
+        draw_month = (
+            f"drawtext=fontfile='{font_path}':text='{month}/':"
+            f"fontsize=140:fontcolor=white:"
+            f"x=240:y=85:shadowx=4:shadowy=4:shadowcolor=black@0.3"
+        )
+        draw_day = (
+            f"drawtext=fontfile='{font_path}':text='{day}':"
+            f"fontsize=240:fontcolor=white:"
+            f"x=460:y=60:shadowx=6:shadowy=6:shadowcolor=black@0.3"
+        )
+        
+        # 标题
+        draw_title_main = (
+            f"drawtext=fontfile='{font_path}':text='虚拟歌手日刊':"
+            f"fontsize=80:fontcolor=white@0.95:"
+            f"x=800:y=50:shadowx=3:shadowy=3:shadowcolor=black@0.3"
+        )
+        draw_title_sub = (
+            f"drawtext=fontfile='{font_path}':text='外语排行榜':"
+            f"fontsize=100:fontcolor=white:"
+            f"x=800:y=135:shadowx=4:shadowy=4:shadowcolor=black@0.3"
+        )
+        
+        # 期数
+        issue_text = f"VOL.{issue_index}" if issue_index > 0 else ""
+        draw_issue = (
+            f"drawtext=fontfile='{font_path}':text='{issue_text}':"
+            f"fontsize=110:fontcolor=white@0.25:"
+            f"x=1920-tw-140:y=(260-th)/2" 
+        )
+        
+        filters.append(f"[deco]{draw_month}[t1]")
+        filters.append(f"[t1]{draw_day}[t2]")
+        filters.append(f"[t2]{draw_title_main}[t3]")
+        filters.append(f"[t3]{draw_title_sub}[t4]")
+        filters.append(f"[t4]{draw_issue}[vout]")
 
         cmd += [
             "-filter_complex", ";".join(filters),
@@ -185,11 +280,19 @@ class Cover:
         except subprocess.CalledProcessError as e:
             logger.error(f"封面图片生成失败: {e}")
 
-    def generate_vertical_cover(self, urls: List[str], output_path: Path):
+    def generate_vertical_cover(
+        self, 
+        urls: List[str], 
+        output_path: Path, 
+        issue_date: str = "", 
+        issue_index: int = 0
+    ):
         """生成 3:4 竖屏封面"""
         if not urls:
             logger.warning("3:4 封面生成失败：没有可用的封面 URL")
             return
+        
+        border_color = self._get_theme_color(issue_date)
         valid_urls = urls[:6]
         count = len(valid_urls)
 
@@ -228,7 +331,7 @@ class Cover:
                 f"pad={pw}:{ph}:{pad}:{pad}:white[{lbl}]"
             )
         
-        hero_y = "(H-h)/2 + 350"
+        hero_y = "(H-h)/2 + 250"
         hero_x = "(W-w)/2"
         top_row_y = 600
         btm_row_y = "H-h-100"
@@ -261,7 +364,6 @@ class Cover:
         text1 = "虚拟歌手日刊"
         text2 = "外语排行榜"
         fill_color = "white@0.95"
-        border_color = "#55CCCC"
         border_w = 22
         font_size_1 = 260
         font_size_2 = 220
@@ -269,7 +371,6 @@ class Cover:
 
         font_obj = ImageFont.truetype(self.font_bold_file, font_size_1)
         w1 = font_obj.getlength(text1)
-            
         right_anchor_x = (W / 2) + (w1 / 2)
         
         draw_t1 = (
@@ -286,7 +387,52 @@ class Cover:
         )
 
         filters.append(f"[combined_img]{draw_t1}[txt1]")
-        filters.append(f"[txt1]{draw_t2}[vout]")
+        filters.append(f"[txt1]{draw_t2}[txt2]")
+
+        if issue_date:
+            try:
+                date_obj = datetime.strptime(issue_date, "%Y%m%d")
+                month = date_obj.strftime("%m")
+                day = date_obj.strftime("%d")
+            except:
+                month = issue_date[-4:-2]
+                day = issue_date[-2:]
+            
+            month_font_size = 300
+            day_font_size = int(month_font_size * 2)  
+            
+            date_base_y = 1700
+            
+            draw_month = (
+                f"drawtext=fontfile='{font_path}':text='{month}':"
+                f"fontsize={month_font_size}:fontcolor={fill_color}:"
+                f"borderw=24:bordercolor={border_color}:"
+                f"x=(w/2)-500:y={date_base_y}:"
+                f"shadowx=8:shadowy=8:shadowcolor=black@0.6"
+            )
+            
+            draw_slash = (
+                f"drawtext=fontfile='{font_path}':text='/':"
+                f"fontsize={month_font_size}:fontcolor={fill_color}:"
+                f"borderw=24:bordercolor={border_color}:"
+                f"x=(w/2)-80:y={date_base_y}:"
+                f"shadowx=6:shadowy=6:shadowcolor=black@0.5"
+            )
+            
+            day_offset_y = (day_font_size - month_font_size) / 2
+            draw_day = (
+                f"drawtext=fontfile='{font_path}':text='{day}':"
+                f"fontsize={day_font_size}:fontcolor={fill_color}:"
+                f"borderw=32:bordercolor={border_color}:"
+                f"x=(w/2)+80:y={date_base_y - day_offset_y}:"
+                f"shadowx=10:shadowy=10:shadowcolor=black@0.6"
+            )
+            
+            filters.append(f"[txt2]{draw_month}[txt3]")
+            filters.append(f"[txt3]{draw_slash}[txt4]")
+            filters.append(f"[txt4]{draw_day}[vout]")
+        else:
+            filters.append("[txt2]copy[vout]")
 
         cmd += [
             "-filter_complex", ";".join(filters),
@@ -302,6 +448,7 @@ class Cover:
             logger.info(f"3:4 封面图片已保存: {output_path}")
         except subprocess.CalledProcessError as e:
             logger.error(f"3:4 封面图片生成失败: {e}")
+
 
     def _get_pil_image(self, url: str, bvid: str) -> Image.Image:
         cover_cache = self.videos_root / bvid / "cover.jpg"
@@ -412,13 +559,12 @@ class Cover:
             region_bottom = list_top_y if list_top_y is not None else int(height * 0.5)
             region_bottom = max(0, min(height, region_bottom))
             
-            block_h = 80 # approx
+            block_h = 80
             if region_bottom - region_top >= block_h + 10:
                 ed_y = region_top + (region_bottom - region_top - block_h) // 2
             else:
                 ed_y = region_top
 
-            # 计算宽度用于右对齐
             l1_box = ed_font.getbbox(line1)
             l2_box = ed_font.getbbox(line2)
             w_blk = max(l1_box[2], l2_box[2])

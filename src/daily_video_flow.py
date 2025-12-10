@@ -127,10 +127,20 @@ class DailyVideoFlow:
 
     def _generate_covers(self, rows, date_str, idx):
         urls_16_9 = self.cover_mgr.select_cover_urls_grid(rows)
-        self.cover_mgr.generate_grid_cover(urls_16_9, self.daily_video_dir / f"{idx}_{date_str}_cover.jpg")
+        self.cover_mgr.generate_grid_cover(
+            urls_16_9, 
+            self.daily_video_dir / f"{idx}_{date_str}_cover.jpg",
+            issue_date=date_str, 
+            issue_index=idx
+        )
+        
         urls_3_4 = self.cover_mgr.select_cover_urls_3_4(rows)
-        self.cover_mgr.generate_vertical_cover(urls_3_4, self.daily_video_dir / f"{idx}_{date_str}_cover_3-4.jpg")
-
+        self.cover_mgr.generate_vertical_cover(
+            urls_3_4, 
+            self.daily_video_dir / f"{idx}_{date_str}_cover_3-4.jpg",
+            issue_date=date_str,
+            issue_index=idx
+        )
     def _generate_achievement_video(self, ex_date, is_date, idx) -> Optional[Path]:
         rows = self.achieve_clipper.load_rows(ex_date, is_date)
 
