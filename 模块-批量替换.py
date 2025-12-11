@@ -4,7 +4,7 @@ from openpyxl import load_workbook
 from openpyxl.cell import MergedCell
 from multiprocessing import Pool, cpu_count
 
-OLD_VALUES = {"圣火炬flaming": "圣火炬"}
+OLD_VALUES = {"面包P": "面包p"}
 TARGET_COLUMN_NAME = 'author'  # None 表示全表
 PARTIAL_REPLACE = False  # True: 部分匹配, False: 精确匹配
 

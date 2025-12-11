@@ -164,19 +164,34 @@ class RankingProcessor:
         """
         author_map = collected_df.drop_duplicates(subset=['name'], keep='first').set_index('name')['author'].to_dict()
 
+        def normalize_authors(author_str) -> set:
+            if pd.isna(author_str) or not str(author_str).strip():
+                return set()
+            s = str(author_str)
+            return {p.strip() for p in s.split('、') if p.strip()}
+
         def get_new_name(row):
             """应用于每一行的逻辑函数"""
             name = row['name']
             author = row['author']
-            if name in author_map and str(author_map[name]).strip().lower() != str(author).strip().lower():
+            if name not in author_map:
+                return name
+            recorded_author_str = author_map[name]
+            current_authors = normalize_authors(author)
+            recorded_authors = normalize_authors(recorded_author_str)
+            if current_authors != recorded_authors:
                 new_name = f"{name}({author})"
-                logger.info(f"检测到同名冲突: 原名='{name}', 作者='{author}' (收录作者='{author_map[name]}')。重命名为: '{new_name}'")
+                logger.info(
+                    f"检测到同名冲突: 原名='{name}'\n"
+                    f"  - 新数据作者: {author}\n"
+                    f"  - 收录库作者: {recorded_author_str}\n"
+                    f"  -> 重命名为: '{new_name}'"
+                )
                 return new_name
             return name
-
         df_to_check.loc[:, 'name'] = df_to_check.apply(get_new_name, axis=1)
-        
         return df_to_check
+
     
     def _update_collected_songs(self, df: pd.DataFrame, existing_collected_df: pd.DataFrame = None) -> pd.DataFrame:
         """更新收录曲目列表。"""
