@@ -1,4 +1,5 @@
 # src/daily_video_flow.py
+import shutil
 import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -94,6 +95,9 @@ class DailyVideoFlow:
         for p in clip_paths:
             if p.exists():
                 p.unlink()
+        temp_text_root = self.daily_video_dir / "temp_texts"
+        if temp_text_root.exists():
+            shutil.rmtree(temp_text_root)
 
     def _generate_clips(self, rows, issue_date) -> Dict[int, Path]:
         tasks = [(i + 1, r.to_dict()) for i, r in enumerate(rows)]

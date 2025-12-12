@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import Dict, List, Tuple
 import math
 from PIL import ImageFont
-
 import pandas as pd
 
 def ffmpeg_escape(text: str) -> str:
@@ -15,11 +14,20 @@ def ffmpeg_escape(text: str) -> str:
              .replace("%", r"\%"))
 
 def ffmpeg_escape_path(path: str) -> str:
-    p = path.replace("\\", "/")
+    p = str(path).replace("\\", "/")
     if ":" in p:
         drive, rest = p.split(":", 1)
         p = f"{drive}\\:{rest}"
     return p
+
+def write_text_to_file(content: str, folder: Path, filename: str) -> str:
+    if not folder.exists():
+        folder.mkdir(parents=True, exist_ok=True)
+    
+    file_path = folder / filename
+    file_path.write_text(content, encoding='utf-8')
+    
+    return ffmpeg_escape_path(str(file_path))
 
 def format_number(x) -> str:
     if x is None:
@@ -40,9 +48,6 @@ def split_text_by_pixel_width(
     max_width: int, 
     max_lines: int = 3
 ) -> List[str]:
-    """
-    使用 PIL 精确计算文字像素宽度进行换行。
-    """
     text = (text or "").strip()
     if not text:
         return []
@@ -71,7 +76,6 @@ def split_text_by_pixel_width(
         
     return lines
 
-
 def build_clip_overlay_cmd(
     *,
     segment_source_path: Path,
@@ -98,11 +102,10 @@ def build_clip_overlay_cmd(
     rank = row.get("rank", None)
     count = row.get("count", 0)
     is_new = bool(row.get("is_new", False))
-
+    temp_text_dir = daily_video_dir / "temp_texts" / f"{issue_date_str}_{bvid}"
     fontfile_expr = ffmpeg_escape_path(font_file)
     bvid_text = ffmpeg_escape(bvid)
     pubdate_text = ffmpeg_escape(pubdate)
-    author_text = ffmpeg_escape(author)
     count_text = ffmpeg_escape(count)
     point_text = ffmpeg_escape(format_number(point))
     wm_line1 = ffmpeg_escape("术力口数据姬")
@@ -128,10 +131,12 @@ def build_clip_overlay_cmd(
 
     left_text_filters = []
     curr_title_y = TITLE_START_Y
-    for line in title_lines:
-        esc_line = ffmpeg_escape(line)
+
+    for i, line in enumerate(title_lines):
+        txt_path = write_text_to_file(line, temp_text_dir, f"title_{i}.txt")
+        
         f = (
-            f"drawtext=fontfile='{fontfile_expr}':text='{esc_line}':x=60:y={curr_title_y}:"
+            f"drawtext=fontfile='{fontfile_expr}':textfile='{txt_path}':x=60:y={curr_title_y}:"
             f"fontsize={TITLE_FONT_SIZE}:fontcolor=white:box=1:boxcolor=black@0.45:boxborderw=14:"
             f"shadowx=2:shadowy=2:shadowcolor=black@0.55"
         )
@@ -184,6 +189,9 @@ def build_clip_overlay_cmd(
         arrow_text_escaped = ffmpeg_escape(arrow_text)
         prev_rank_text_escaped = ffmpeg_escape(prev_rank_text)
 
+    author_full_str = f"作者：{author}"
+    author_txt_path = write_text_to_file(author_full_str, temp_text_dir, "author.txt")
+
     INFO_START_Y = 280 + shift_y
     
     left_text_filters += [
@@ -201,7 +209,7 @@ def build_clip_overlay_cmd(
             f"fontsize=36:fontcolor=white:shadowx=2:shadowy=2:shadowcolor=black@0.9"
         ),
         (
-            f"drawtext=fontfile='{fontfile_expr}':text='作者：{author_text}':x=60:y={INFO_START_Y + 80}:"
+            f"drawtext=fontfile='{fontfile_expr}':textfile='{author_txt_path}':x=60:y={INFO_START_Y + 80}:"
             f"fontsize=36:fontcolor=white:shadowx=2:shadowy=2:shadowcolor=black@0.9"
         ),
         (
@@ -417,6 +425,7 @@ def build_clip_overlay_cmd(
 
     shadow_offset = 2
     
+    # 叠加图标
     for idx, (label, value, icon_x_pos, value_x_pos, y) in enumerate(stats_layout):
         main_label, shadow_label = icon_processed_labels[label]
         

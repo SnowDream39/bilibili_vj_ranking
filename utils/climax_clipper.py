@@ -45,7 +45,7 @@ def _compute_vocaloid_activity(
     mid_energy = np.mean(mag[mid_freq_mask, :], axis=0)
     mid_n = _normalize(mid_energy)
     
-    vocaloid_score = 0.4 * flux_n + 0.3 * tonal_n + 0.3 * mid_n
+    vocaloid_score = 0.2 * flux_n + 0.5 * tonal_n + 0.3 * mid_n
     
     return vocaloid_score
 
@@ -125,10 +125,10 @@ def find_climax_segment(
 
     # 4. 综合打分
     # VOCALOID旋律性 > 响度 > 节奏 > 重复度
-    alpha_vocaloid = 0.40
-    alpha_rms = 0.30
-    alpha_onset = 0.20
-    alpha_rep = 0.10
+    alpha_vocaloid = 0.30
+    alpha_rms = 0.20
+    alpha_onset = 0.25
+    alpha_rep = 0.25
     
     combined_score = (
         alpha_vocaloid * vocaloid_n +
