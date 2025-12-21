@@ -23,7 +23,7 @@ def calculate_scores(view: int, favorite: int, coin: int, like: int, danmaku: in
     Returns:
         tuple: (播放分,收藏分,硬币分,点赞分,修正系数A,修正系数B,修正系数C)
     """
-    viewR, favoriteR, coinR, likeR, danmakuR, replyR, shareR, fixA, fixB, fixC = (0.0,) * 10
+    viewR, favoriteR, coinR, likeR, danmakuR, replyR, shareR, fixA, fixB, fixC, fixD = (0.0,) * 11
     # 版权判定: 自制=1, 转载=2
     copyright = 1 if copyright in [1, 3, 101] else 2
     # 特殊情况处理: 如果有其他互动但没有投币,虚设为1参与计算
@@ -58,7 +58,7 @@ def calculate_scores(view: int, favorite: int, coin: int, like: int, danmaku: in
         coinR = coinR / 2 + 20
         likeR = likeR / 2 + 2.5
     
-    return viewR, favoriteR, coinR, likeR, danmakuR, replyR, shareR, fixA, fixB, fixC
+    return viewR, favoriteR, coinR, likeR, danmakuR, replyR, shareR, fixA, fixB, fixC, fixD
 
 def calculate_scores_v2(view: int, favorite: int, coin: int, like: int, danmaku: int, reply: int, share: int, copyright: int, ranking_type: str):
     """
@@ -73,9 +73,9 @@ def calculate_scores_v2(view: int, favorite: int, coin: int, like: int, danmaku:
         ranking_type: 榜单类型（'daily', 'weekly', 'monthly', 'annual', 'special'）。
     
     Returns:
-        tuple: (播放分,收藏分,硬币分,点赞分,修正系数A,修正系数B,修正系数C)
+        tuple: (播放分,收藏分,硬币分,点赞分,修正系数A,修正系数B,修正系数C,修正系数D)
     """
-    viewR, favoriteR, coinR, likeR, danmakuR, replyR, shareR, fixA, fixB, fixC = (0.0,) * 10
+    viewR, favoriteR, coinR, likeR, danmakuR, replyR, shareR, fixA, fixB, fixC, fixD = (0.0,) * 11
     # 版权判定: 自制=1, 转载=2
     copyright = 1 if copyright in [1, 3, 101] else 2
     # 特殊情况处理: 如果有其他互动但没有投币,虚设为1参与计算
