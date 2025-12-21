@@ -83,7 +83,7 @@ def process_records(
             'coinR': f'{data[9]:.2f}', 'likeR': f'{data[10]:.2f}',
             'danmakuR': f'{data[11]:.2f}', 'replyR': f'{data[12]:.2f}', 'shareR': f'{data[13]:.2f}',
             'fixA': f'{data[14]:.2f}', 'fixB': f'{data[15]:.2f}', 
-            'fixC': f'{data[16]:.2f}', 'point': data[17], 
+            'fixC': f'{data[16]:.2f}', 'fixD': f'{data[17]:.2f}', 'point': data[18], 
             'image_url': new['image_url']
         }
         if 'intro' in new and pd.notna(new['intro']):

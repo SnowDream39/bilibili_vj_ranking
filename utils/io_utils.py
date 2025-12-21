@@ -83,7 +83,7 @@ def format_columns(df):
     Returns:
         pd.DataFrame: 处理后的DataFrame。
     """
-    columns = ['viewR', 'favoriteR', 'coinR', 'likeR', 'danmakuR', 'replyR', 'shareR', 'fixA', 'fixB', 'fixC']
+    columns = ['viewR', 'favoriteR', 'coinR', 'likeR', 'danmakuR', 'replyR', 'shareR', 'fixA', 'fixB', 'fixC', 'fixD']
     for col in columns:
         if col in df.columns:
             # 将列转换为数值类型，无法转换的值设为NaN

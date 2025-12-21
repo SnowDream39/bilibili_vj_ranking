@@ -60,6 +60,68 @@ def calculate_scores(view: int, favorite: int, coin: int, like: int, danmaku: in
     
     return viewR, favoriteR, coinR, likeR, danmakuR, replyR, shareR, fixA, fixB, fixC
 
+def calculate_scores_v2(view: int, favorite: int, coin: int, like: int, danmaku: int, reply: int, share: int, copyright: int, ranking_type: str):
+    """
+    计算视频的各项评分
+    
+    Args:
+        view: 播放
+        favorite: 收藏
+        coin: 硬币
+        like: 点赞
+        copyright: 版权类型(1,101为自制,2为转载)
+        ranking_type: 榜单类型（'daily', 'weekly', 'monthly', 'annual', 'special'）。
+    
+    Returns:
+        tuple: (播放分,收藏分,硬币分,点赞分,修正系数A,修正系数B,修正系数C)
+    """
+    viewR, favoriteR, coinR, likeR, danmakuR, replyR, shareR, fixA, fixB, fixC = (0.0,) * 10
+    # 版权判定: 自制=1, 转载=2
+    copyright = 1 if copyright in [1, 3, 101] else 2
+    # 特殊情况处理: 如果有其他互动但没有投币,虚设为1参与计算
+    coin = 1 if (coin == 0 and view > 0 and favorite > 0 and like > 0) else coin  
+    # 计算修正系数A(搬运稿硬币得分补偿)
+    fixA = 0 if coin <= 0 else (1 if copyright == 1 else ceil(max(1, (view + 20 * favorite + 40 * coin + 10 * like) / (200 * coin)) * 100) / 100)  
+    
+    # 计算修正系数B(云视听小电视等高播放收藏、低硬币点赞抑制系数)
+    if ranking_type in ('daily', 'weekly', 'monthly'):
+        fixB = 0 if view + 20 * favorite <= 0 else ceil(min(1, 3 * max(0, (20 * coin + 10 * like)) / (view + 20 * favorite)) * 100) / 100
+    elif ranking_type in ('annual', 'special'):
+        fixB = 0 if view + 20 * favorite <= 0 else ceil(min(1, 3 * max(0, (20 * coin * fixA + 10 * like)) / (view + 20 * favorite)) * 100) / 100
+
+    # 计算修正系数C(梗曲等高点赞、低收藏抑制系数)
+    fixC = 0 if like + favorite <= 0 else ceil(min(1, (like + favorite + 20 * coin * fixA)/(2 * like + 2 * favorite)) * 100) / 100
+
+    # 计算修正系数D(评论异常视频抑制系数)
+    fixD = 0 if reply <= 0 else ceil(min(1, max(1, favorite + like)/ (max(1, favorite + like) + 0.1 * reply)) ** 20 * 100) / 100
+    # 日刊/周刊评分计算
+    if ranking_type in ('daily', 'weekly'):
+        viewR = 0 if view <= 0 else max(ceil(min(max((fixA * coin + favorite), 0) * 10 / view, 1) * 100) / 100, 0)
+        favoriteR = 0 if favorite <= 0 else max(ceil(min((favorite + 2 * fixA * coin) * 10 / (favorite * 10 + view) * 20, 20) * 100) / 100, 0)
+        coinR = 0 if fixA * coin * 40 + view <= 0 else max(ceil(min((fixA * coin * 40) / (fixA * coin * 20 + view) * 40, 40) * 100) / 100, 0)
+        likeR = 0 if like <= 0 else max(floor(min(5, max(fixA * coin + favorite, 0) / (like * 20 + view) * 100) * 100) / 100, 0)
+        danmakuR = 0 if danmaku <= 0 else max(ceil(min(100, max(0, (20 * max(0, reply) + favorite + like)) / max(1, danmaku, danmaku + reply)) * 100) / 100, 0)
+        replyR = 0 if reply <= 0 else max(ceil(min((400 * reply + 10 * like + 10 * favorite) / (200 * reply + view) * 20, 40) * 100) / 100, 0)
+        shareR = 0 if share <= 0 else max(ceil(min((2 * fixA * coin + favorite) / (5 * share + like) * 10, 10) * 100) / 100, 0)
+    # 月刊/年刊/特刊评分计算
+    elif ranking_type in ('monthly', 'annual', 'special'):
+        viewR = 0 if view <= 0 else max(ceil(min(max((fixA * coin + favorite), 0) * 15 / view, 1) * 100) / 100, 0)
+        favoriteR = 0 if favorite <= 0 else max(ceil(min((favorite + 2 * fixA * coin) * 10 / (favorite * 10 + view) * 20, 20) * 100) / 100, 0)
+        coinR = 0 if fixA * coin * 40 + view <= 0 else max(ceil(min((fixA * coin * 40) / (fixA * coin * 20 + view) * 40, 40) * 100) / 100, 0)
+        likeR = 0 if like <= 0 else max(ceil(min(5, max(fixA * coin + favorite, 0) / (like * 20 + view) * 100) * 100) / 100, 0)
+        danmakuR = 0 if danmaku <= 0 else max(ceil(min(100, max(0, (20 * max(0, reply) + favorite + like)) / max(1, danmaku, danmaku + reply)) * 100) / 100, 0)
+        replyR = 0 if reply <= 0 else max(ceil(min((400 * reply + 10 * like + 10 * favorite) / (200 * reply + view) * 20, 40) * 100) / 100, 0)
+        shareR = 0 if share <= 0 else max(ceil(min((2 * fixA * coin + favorite) / (5 * share + like) * 10, 10) * 100) / 100, 0)
+    if ranking_type in ('annual'):
+        viewR = viewR / 2 + 0.5
+        favoriteR = favoriteR / 2 + 10
+        coinR = coinR / 2 + 20
+        likeR = likeR / 2 + 2.5
+        #danmakuR = danmakuR / 2 + 50
+        replyR = replyR / 2 + 20
+        shareR = shareR / 2 + 5
+    return viewR, favoriteR, coinR, likeR, danmakuR, replyR, shareR, fixA, fixB, fixC, fixD
+
 def calculate_points(diff: List[float], scores: Tuple[float, ...]) -> float:
     """
     根据数据增量和评分系数计算总分。
@@ -76,14 +138,14 @@ def calculate_points(diff: List[float], scores: Tuple[float, ...]) -> float:
     
     # 计算各项分数
     #viewR, favoriteR, coinR, likeR, fixA = scores[:5]
-    viewR, favoriteR, coinR, likeR, danmakuR, replyR, shareR, fixA = scores[:8]
+    viewR, favoriteR, coinR, likeR, danmakuR, replyR, shareR, fixA, fixB, fixC, fixD = scores[:11]
     viewP = diff[0] * viewR             # 播放得分
     favoriteP = diff[1] * favoriteR     # 收藏得分
     coinP = coin * coinR * fixA         # 硬币得分
     likeP = diff[3] * likeR             # 点赞得分
-    danmakuP = diff[4] * danmakuR     # 弹幕得分
-    replyP = diff[5] * replyR         # 评论得分
-    shareP = diff[6] * shareR         # 分享得分
+    danmakuP = diff[4] * danmakuR       # 弹幕得分
+    replyP = diff[5] * replyR * fixD    # 评论得分
+    shareP = diff[6] * shareR           # 分享得分
     return viewP + favoriteP + coinP + likeP + danmakuP + replyP + shareP
 
 def calculate_ranks(df: pd.DataFrame) -> pd.DataFrame:

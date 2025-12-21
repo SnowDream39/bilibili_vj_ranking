@@ -1,6 +1,6 @@
 # utils/cover.py
 from pathlib import Path
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 from io import BytesIO
 import random
 import subprocess
@@ -54,74 +54,203 @@ class Cover:
     def _get_theme_color(self, issue_date: str) -> str:
         """根据期刊日期（YYYYMMDD）返回当天的主题色"""
         date_obj = datetime.strptime(issue_date, "%Y%m%d")
-        weekday = date_obj.weekday()  
+        weekday = date_obj.weekday()
         return self.weekday_colors.get(weekday, "#55CCCC")
 
-    def select_cover_urls_3_4(self, combined_rows: List[pd.Series]) -> List[str]:
-        if not combined_rows:
-            return []
-            
-        rank1_row = None
-        others_top_rows = []
-        new_rows = []
-        for r in combined_rows:
-            is_new = bool(r.get("is_new", False))
-            try:
-                rank = int(r.get("rank", 999))
-            except:
-                rank = 999
-            
-            if is_new:
-                new_rows.append(r)
-            else:
-                if rank == 1:
-                    rank1_row = r
-                elif 2 <= rank <= 10:
-                    others_top_rows.append(r)
-                    
-        selected_rows = []
+    def _parse_row_data(self, r: pd.Series) -> Dict[str, Any]:
+        """解析并清洗行数据"""
+        try:
+            rank = int(r.get("rank", 999))
+        except:
+            rank = 999
         
-        if rank1_row is not None:
-            selected_rows.append(rank1_row)
+        try:
+            count = int(r.get("count", 0))
+        except:
+            count = 0
+
+        return {
+            "row": r,
+            "bvid": str(r.get("bvid", "")),
+            "rank": rank,
+            "is_new": bool(r.get("is_new", False)),
+            "count": count,
+            "url": str(r.get("image_url", "")).strip()
+        }
+
+    def _select_cover_candidates(self, combined_rows: List[pd.Series]) -> Dict[str, Any]:
+        """
+        核心筛选逻辑：
+        1. 总榜第一
+        2. 新曲第一 (如果新曲第一是总榜第一，则顺延)
+        3. 其他新曲 (1个)
+        4. 上榜次数最多 (1个，从Top3里选)
+        5. Top 2-5 (1个)
+        6. Top 6-10 (1个)
+        """
+        if not combined_rows:
+            return {}
+
+        # 1. 预处理数据
+        data = [self._parse_row_data(r) for r in combined_rows]
+        # 按排名排序
+        data.sort(key=lambda x: x["rank"])
+        
+        used_bvids = set()
+        result = {}
+
+        # === 角色 1: 总榜第一 (Total Rank 1) ===
+        rank1 = data[0]
+        result["total_rank_1"] = rank1
+        used_bvids.add(rank1["bvid"])
+
+        # === 角色 2: 新曲第一 (New Rank 1) ===
+        # 筛选所有新曲，按排名排序
+        new_songs = [d for d in data if d["is_new"]]
+        new_rank_1 = None
+        for item in new_songs:
+            if item["bvid"] not in used_bvids:
+                new_rank_1 = item
+                break
+        
+        # 兜底：如果新曲第一也是总榜第一且没有其他新曲，或者根本没有新曲
+        # 则选排名最高的未使用的视频
+        if not new_rank_1:
+            for item in data:
+                if item["bvid"] not in used_bvids:
+                    new_rank_1 = item
+                    break
+        
+        if new_rank_1:
+            result["new_rank_1"] = new_rank_1
+            used_bvids.add(new_rank_1["bvid"])
+
+        # 辅助函数：从候选池里随机选一个未使用的，如果池子空了就从剩余所有里选
+        def pick_one_from(pool_candidates, fallback_pool=data):
+            candidates = [x for x in pool_candidates if x["bvid"] not in used_bvids]
+            if candidates:
+                selected = random.choice(candidates)
+                used_bvids.add(selected["bvid"])
+                return selected
             
-        if len(others_top_rows) >= 3:
-            selected_rows.extend(random.sample(others_top_rows, 3))
-        else:
-            selected_rows.extend(others_top_rows)
-            
-        if len(new_rows) >= 2:
-            selected_rows.extend(random.sample(new_rows, 2))
-        else:
-            selected_rows.extend(new_rows)
-            
-        urls = []
-        for r in selected_rows:
-            u = str(r.get("image_url", "")).strip()
-            if u:
-                urls.append(u)
-                
-        return urls
+            # 兜底
+            remaining = [x for x in fallback_pool if x["bvid"] not in used_bvids]
+            if remaining:
+                selected = remaining[0] # 既然都兜底了，直接拿第一个防止random报错
+                used_bvids.add(selected["bvid"])
+                return selected
+            return None
+
+        # === 角色 3: 其他新曲 (Other New) ===
+        # 排除掉已经被选为 "新曲第一" 的那些
+        other_new_pool = [d for d in data if d["is_new"]]
+        result["other_new"] = pick_one_from(other_new_pool)
+
+        # === 角色 4: 上榜次数最多 (High Count) ===
+        # 选取剩余里 count 最高的 3 个，从中随机选 1 个
+        # 排除已选
+        remaining_for_count = [d for d in data if d["bvid"] not in used_bvids]
+        remaining_for_count.sort(key=lambda x: x["count"], reverse=True)
+        high_count_pool = remaining_for_count[:3] # 取前3
+        result["high_count"] = pick_one_from(high_count_pool)
+
+        # === 角色 5: Top 2-5 ===
+        top_2_5_pool = [d for d in data if 2 <= d["rank"] <= 5]
+        result["top_2_5"] = pick_one_from(top_2_5_pool)
+
+        # === 角色 6: Top 6-10 ===
+        top_6_10_pool = [d for d in data if 6 <= d["rank"] <= 10]
+        result["top_6_10"] = pick_one_from(top_6_10_pool)
+
+        return result
 
     def select_cover_urls_grid(self, combined_rows: List[pd.Series]) -> List[str]:
-        if not combined_rows:
+        """
+        横屏封面选片 (16:9)
+        Left (Max): Total Rank 1
+        Right (2nd Max): New Rank 1
+        Top Row (4 small): Other New, High Count, Top 2-5, Top 6-10 (Random Order)
+        """
+        candidates = self._select_cover_candidates(combined_rows)
+        if not candidates:
+            return []
+
+        # 构造列表，顺序对应 filter_complex 里的 input index
+        # [0]: Left Large
+        # [1]: Right Large
+        # [2-5]: Small grid
+        
+        final_list = []
+        
+        # 1. Left Large
+        r1 = candidates.get("total_rank_1")
+        final_list.append(r1["url"] if r1 else "")
+        
+        # 2. Right Large
+        n1 = candidates.get("new_rank_1")
+        final_list.append(n1["url"] if n1 else "")
+        
+        # 3. Small Grid (Random Order)
+        small_pool = [
+            candidates.get("other_new"),
+            candidates.get("high_count"),
+            candidates.get("top_2_5"),
+            candidates.get("top_6_10")
+        ]
+        # 去除None并随机打乱
+        valid_small = [x for x in small_pool if x is not None]
+        random.shuffle(valid_small)
+        
+        for item in valid_small:
+            final_list.append(item["url"])
+            
+        return final_list
+
+    def select_cover_urls_3_4(self, combined_rows: List[pd.Series]) -> List[str]:
+        """
+        竖屏封面选片 (3:4)
+        Center (Hero): Total Rank 1
+        Top Left: New Rank 1
+        Top Right: High Count
+        Bottom Row (3 small): Other New, Top 2-5, Top 6-10 (Random Order)
+        """
+        candidates = self._select_cover_candidates(combined_rows)
+        if not candidates:
             return []
         
-        best_index = 0
-        for idx, row in enumerate(combined_rows):
-            if not bool(row.get("is_new", False)) and row.get("rank", None) == 1:
-                best_index = idx
-                break
-        new_indices = [idx for idx, row in enumerate(combined_rows) if bool(row.get("is_new", False))]
-        new1_index = new_indices[0] if len(new_indices) > 0 else -1
-        new2_index = new_indices[1] if len(new_indices) > 1 else -1
-        fixed_indices = [i for i in [best_index, new1_index, new2_index] if i != -1]
-        used_set = set(fixed_indices)
-        remaining = [i for i in range(len(combined_rows)) if i not in used_set]
-        needed = 6 - len(fixed_indices)
-        bottom_indices = random.sample(remaining, min(len(remaining), needed))
-        final_indices = fixed_indices + bottom_indices
-        urls = [str(combined_rows[i].get("image_url", "")).strip() for i in final_indices]
-        return [u for u in urls if u]
+        # 顺序对应 generate_vertical_cover 循环逻辑
+        # index 0: Hero
+        # index 1: Top Left
+        # index 2: Top Right
+        # index 3,4,5: Bottom Row
+        
+        final_list = []
+        
+        # 0. Hero
+        r1 = candidates.get("total_rank_1")
+        final_list.append(r1["url"] if r1 else "")
+        
+        # 1. Top Left
+        n1 = candidates.get("new_rank_1")
+        final_list.append(n1["url"] if n1 else "")
+        
+        # 2. Top Right
+        hc = candidates.get("high_count")
+        final_list.append(hc["url"] if hc else "")
+        
+        # 3. Bottom Row
+        bottom_pool = [
+            candidates.get("other_new"),
+            candidates.get("top_2_5"),
+            candidates.get("top_6_10")
+        ]
+        valid_bottom = [x for x in bottom_pool if x is not None]
+        random.shuffle(valid_bottom)
+        
+        for item in valid_bottom:
+            final_list.append(item["url"])
+            
+        return final_list
 
     def generate_grid_cover(
         self, 
@@ -149,14 +278,17 @@ class Cover:
         filters = []
         
         #图片处理
+        # v0: 左侧大图 (Total Rank 1)
         filters.append(
             f"[0:v]scale=1000:562:force_original_aspect_ratio=increase,crop=1000:562,setsar=1,"
             f"pad=1024:586:12:12:white[v0_raw]"
         )
+        # v1: 右侧大图 (New Rank 1)
         filters.append(
             f"[1:v]scale=800:450:force_original_aspect_ratio=increase,crop=800:450,setsar=1,"
             f"pad=824:474:12:12:white[v1_raw]"
         )
+        # v2-v5: 上方小图
         for i in range(2, 6):
             filters.append(
                 f"[{i}:v]scale=420:236:force_original_aspect_ratio=increase,crop=420:236,setsar=1,"
@@ -336,19 +468,28 @@ class Cover:
         top_row_y = 600
         btm_row_y = "H-h-100"
         
+        # 位置映射
+        # valid_urls[1] -> Top Left
+        # valid_urls[2] -> Top Right
+        # valid_urls[3] -> Bottom Left
+        # valid_urls[4] -> Bottom Center
+        # valid_urls[5] -> Bottom Right
+        
         small_positions = [
-            {"x": "-100", "y": top_row_y}, 
-            {"x": "W-w+100", "y": top_row_y},
-            {"x": "-150", "y": btm_row_y},
-            {"x": "(W-w)/2", "y": btm_row_y},
-            {"x": "W-w+150", "y": btm_row_y},
+            {"x": "-100", "y": top_row_y},         # i=1 Top Left
+            {"x": "W-w+100", "y": top_row_y},      # i=2 Top Right
+            {"x": "-150", "y": btm_row_y},         # i=3 Bottom Left
+            {"x": "(W-w)/2", "y": btm_row_y},      # i=4 Bottom Center
+            {"x": "W-w+150", "y": btm_row_y},      # i=5 Bottom Right
         ]
         
         current_bg = "bg"
         for i in range(1, count):
             lbl = processed_labels[i]
             pos_idx = i - 1
-            pos = small_positions[pos_idx] if pos_idx < len(small_positions) else small_positions[-1]
+            if pos_idx >= len(small_positions): pos_idx = 0
+            
+            pos = small_positions[pos_idx]
             next_bg = f"tmp_bg_{i}"
             filters.append(f"[{current_bg}][{lbl}]overlay=x={pos['x']}:y={pos['y']}[{next_bg}]")
             current_bg = next_bg
@@ -448,7 +589,6 @@ class Cover:
             logger.info(f"3:4 封面图片已保存: {output_path}")
         except subprocess.CalledProcessError as e:
             logger.error(f"3:4 封面图片生成失败: {e}")
-
 
     def _get_pil_image(self, url: str, bvid: str) -> Image.Image:
         cover_cache = self.videos_root / bvid / "cover.jpg"
