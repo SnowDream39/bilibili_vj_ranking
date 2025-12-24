@@ -20,7 +20,7 @@ def _normalize(x: np.ndarray) -> np.ndarray:
 
 def _separate_vocals_demucs(audio_path: str, sr: int) -> Optional[np.ndarray]:
     """
-    使用 Demucs 调用命令行分离人声。
+    使用Demucs分离人声。
     """
     with tempfile.TemporaryDirectory() as temp_dir:
         temp_out = Path(temp_dir)
@@ -40,8 +40,8 @@ def _separate_vocals_demucs(audio_path: str, sr: int) -> Optional[np.ndarray]:
         
         try:
             subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            logger.error("Demucs 分离命令执行失败，确保已正确安装 Demucs。")
+        except Exception:
+            logger.warning("Demucs 分离失败或未安装，将跳过人声过滤步骤。")
             return None
 
         found_files = list(temp_out.rglob("vocals.wav"))
@@ -51,50 +51,9 @@ def _separate_vocals_demucs(audio_path: str, sr: int) -> Optional[np.ndarray]:
             try:
                 y_vocals, _ = librosa.load(str(target_file), sr=sr, mono=True)
                 return y_vocals
-            except Exception as e:
-                logger.warning(f"加载分离后人声轨道失败: {e}")
+            except Exception:
                 return None
         return None
-
-def _compute_vocal_activity(
-    y_full: np.ndarray,
-    y_vocals: Optional[np.ndarray],
-    sr: int,
-    hop_length: int = 512
-) -> np.ndarray:
-    """
-    计算人声活跃度。
-    """
-    if y_vocals is not None:
-        # === 方案 A: AI 分离成功 ===
-        min_len = min(len(y_full), len(y_vocals))
-        y_vocals = y_vocals[:min_len]
-        
-        S = np.abs(librosa.stft(y_vocals, hop_length=hop_length))
-        
-        freqs = librosa.fft_frequencies(sr=sr, n_fft=2048) # 默认 n_fft=2048
-        band_mask = (freqs >= 200) & (freqs <= 8000)
-        
-        energy = np.mean(S[band_mask, :], axis=0)
-        
-        energy_db = librosa.amplitude_to_db(energy, ref=np.max)
-        
-        return _normalize(energy_db)
-    else:
-        # === 方案 B: 回退到 HPSS ===
-        y_harmonic, y_percussive = librosa.effects.hpss(y_full)
-        S_h = np.abs(librosa.stft(y_harmonic, hop_length=hop_length))
-        S_p = np.abs(librosa.stft(y_percussive, hop_length=hop_length))
-        
-        harmonic_energy = np.mean(S_h, axis=0)
-        percussive_energy = np.mean(S_p, axis=0) + 1e-6
-        ratio = harmonic_energy / (percussive_energy + harmonic_energy)
-        
-        freqs = librosa.fft_frequencies(sr=sr)
-        vocal_mask = (freqs >= 800) & (freqs <= 6000) 
-        vocal_band_energy = np.mean(S_h[vocal_mask, :], axis=0)
-        
-        return _normalize(0.5 * _normalize(ratio) + 0.5 * _normalize(vocal_band_energy))
 
 def _compute_block_chroma_repetition(
     y: np.ndarray,
@@ -102,7 +61,7 @@ def _compute_block_chroma_repetition(
     block_sec: float = 1.0
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
-    基于色度特征(chroma)的块级重复度估计。
+    计算重复度。
     """
     cqt_hop = 1024
     try:
@@ -139,87 +98,64 @@ def _compute_block_chroma_repetition(
     block_times = (np.arange(len(rep_score)) + 0.5) * block_sec
     return rep_score, block_times
 
-
 def find_climax_segment(
     audio_path: str,
     clip_duration: float = 20.0,
     hop_length: int = 512
 ) -> Tuple[float, float]:
-    """
-    Demucs AI 增强版高潮检测
-    """
+    """高潮检测算法"""
     try:
         y, sr = librosa.load(audio_path, sr=None, mono=True)
     except Exception:
         return 0.0, clip_duration
 
-    y_vocals = _separate_vocals_demucs(audio_path, sr)
-
-    # 1. 响度特征 (RMS) -> 转 dB
+    # 1. 响度
     rms = librosa.feature.rms(y=y, hop_length=hop_length)[0]
-    rms_db = librosa.amplitude_to_db(rms, ref=np.max) 
     
-    # 2. 节奏强度 (Onset)
-    onset_env = librosa.onset.onset_strength(y=y, sr=sr, hop_length=hop_length)
-    
-    # 3. 人声活跃度 (Vocal) -> 内部已转 dB
-    vocal_score = _compute_vocal_activity(y, y_vocals, sr, hop_length)
-
-    # 对齐长度
-    min_len = min(len(rms), len(onset_env), len(vocal_score))
-    rms_db = rms_db[:min_len]
-    onset_env = onset_env[:min_len]
-    vocal_score = vocal_score[:min_len]
-
-    # 归一化 (使用 Robust Normalization)
-    rms_n = _normalize(rms_db) 
-    onset_n = _normalize(onset_env)
-    vocal_n = _normalize(vocal_score)
-
-    # 4. 重复度特征 (Repetition)
+    # 2. 重复度
     rep_block, block_times = _compute_block_chroma_repetition(y, sr, block_sec=1.0)
+    
+    # 3. 对齐数据长度
+    min_len = len(rms)
     frame_idx = np.arange(min_len)
     frame_times = librosa.frames_to_time(frame_idx, sr=sr, hop_length=hop_length)
+    
+    # 将块级重复度插值到帧级
     if len(rep_block) > 1:
         rep_frame = np.interp(frame_times, block_times, rep_block)
     else:
-        rep_frame = np.zeros_like(frame_times)
+        rep_frame = np.zeros_like(rms)
+        
+    rms_n = _normalize(rms)
     rep_n = _normalize(rep_frame)
 
-    # === 权重重新调整 ===
-    if y_vocals is not None:
-        alpha_vocal = 0.30  # 降低：只要有人声就行，不需要填得太满
-        alpha_rep = 0.25    # 提升：寻找旋律记忆点（Hook）
-        alpha_rms = 0.25    # 平衡：响度依然重要，副歌通常能量大
-        alpha_onset = 0.20  # 提升：副歌鼓点通常更明显
-    else:
-        alpha_vocal = 0.40
-        alpha_rep = 0.30
-        alpha_rms = 0.20
-        alpha_onset = 0.10
+    raw_score = 0.65 * rms_n + 0.35 * rep_n
 
-    combined_score = (
-        alpha_vocal * vocal_n +
-        alpha_rep * rep_n +
-        alpha_rms * rms_n +
-        alpha_onset * onset_n
-    )
+    y_vocals = _separate_vocals_demucs(audio_path, sr)
     
     if y_vocals is not None:
+        y_vocals = y_vocals[:len(y)]
+        
+        vocal_rms = librosa.feature.rms(y=y_vocals, hop_length=hop_length)[0]
+        vocal_rms = vocal_rms[:min_len]
+        vocal_rms_n = _normalize(vocal_rms)
+        
         silence_thresh = 0.15
-        mask = vocal_n > silence_thresh
-        combined_score[~mask] *= 0.3
+        
+        vocal_mask = np.where(vocal_rms_n > silence_thresh, 1.0, 0.0)
+        
+        if np.mean(vocal_mask) > 0.05:
+            raw_score = raw_score * vocal_mask
 
     frames_per_sec = sr / hop_length
     window_frames = int(clip_duration * frames_per_sec)
     duration = len(y) / sr
 
-    if window_frames <= 1 or window_frames >= len(combined_score):
+    if window_frames <= 1 or window_frames >= len(raw_score):
         return 0.0, min(float(duration), clip_duration)
 
-    # 使用卷积计算区间总分
     kernel = np.ones(window_frames, dtype=float)
-    window_scores = np.convolve(combined_score, kernel, mode="valid")
+    window_scores = np.convolve(raw_score, kernel, mode="valid")
     
     start_frame_idx = np.arange(len(window_scores))
     start_times = librosa.frames_to_time(start_frame_idx, sr=sr, hop_length=hop_length)
@@ -246,19 +182,30 @@ def find_climax_segment(
     rough_start = float(start_times[best_idx])
     rough_start = max(0.0, min(rough_start, max_start))
     
-    search_back = 1.0
-    search_forward = 1.0
+    onset_env = librosa.onset.onset_strength(y=y, sr=sr, hop_length=hop_length)
+    
+    search_range = 1.0
+    
     tempo, beat_frames = librosa.beat.beat_track(onset_envelope=onset_env, sr=sr, hop_length=hop_length)
     beat_times = librosa.frames_to_time(beat_frames, sr=sr, hop_length=hop_length)
     
-    candidate_beats = beat_times[
-        (beat_times >= rough_start - search_back) & 
-        (beat_times <= rough_start + search_forward)
+    candidates = beat_times[
+        (beat_times >= rough_start - search_range) & 
+        (beat_times <= rough_start + search_range)
     ]
 
     final_start = rough_start
-    if len(candidate_beats) > 0:
-        final_start = float(candidate_beats[np.argmin(np.abs(candidate_beats - rough_start))])
+    if len(candidates) > 0:
+        final_start = float(candidates[np.argmin(np.abs(candidates - rough_start))])
+    else:
+        onset_frames = librosa.onset.onset_detect(onset_envelope=onset_env, sr=sr, hop_length=hop_length, units='frames')
+        onset_times = librosa.frames_to_time(onset_frames, sr=sr, hop_length=hop_length)
+        candidates = onset_times[
+            (onset_times >= rough_start - search_range) & 
+            (onset_times <= rough_start + search_range)
+        ]
+        if len(candidates) > 0:
+             final_start = float(candidates[np.argmin(np.abs(candidates - rough_start))])
 
     final_start = max(0.0, min(final_start, max_start))
     final_end = min(float(duration), final_start + clip_duration)

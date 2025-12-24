@@ -42,59 +42,43 @@ class Issue:
         return issue_date_str, issue_index, excel_date_str
 
     def prepare_video_data(self, top_n: int) -> Tuple[List[pd.Series], str, int, str]:
-        """
-        读取 Excel 并准备用于视频生成的混合数据 (Top榜 + 新曲榜)
-        
-        Args:
-            top_n (int): 收录前 N 名
-            
-        Returns:
-            combined_rows (List[pd.Series]): 混合后的数据行列表
-            issue_date (str): 期刊日期 YYYYMMDD
-            issue_index (int): 期号
-            excel_date (str): 原始Excel日期 YYYYMMDD
-        """
         excel_path = self.get_latest_total_excel()
         issue_date, idx, ex_date = self.infer_issue_info(excel_path)
         
-        # 读取总榜
         df_total = pd.read_excel(excel_path, dtype={'bvid': str})
         df_top = df_total.sort_values("rank").head(top_n).sort_values("rank", ascending=False)
         
-        count_map = {
-            str(r['bvid']).strip(): r['count'] 
-            for _, r in df_total.iterrows() 
-            if pd.notna(r['bvid'])
-        }
+        top_bvids = set()
+        for _, r in df_top.iterrows():
+            if pd.notna(r['bvid']):
+                top_bvids.add(str(r['bvid']).strip())
 
-        # 读取新曲榜
         newsong_path = self.get_newsong_excel(excel_path)
         df_new = pd.read_excel(newsong_path, dtype={'bvid': str})
         if "rank" in df_new.columns:
             df_new = df_new.sort_values("rank")
 
-        # 筛选逻辑
-        top_bvids = set(df_top["bvid"].str.strip())
         new_rows = []
-        
-        # 筛选不在 Top 榜中的新曲，取前2名
         for _, row in df_new.iterrows():
             if str(row['bvid']).strip() not in top_bvids:
                 new_rows.append(row)
                 if len(new_rows) >= 2:
                     break
-
-        # 组合列表：倒序放入新曲(is_new=True) + Top榜(is_new=False)
         combined = []
         for r in reversed(new_rows):
             s = r.copy()
             s['is_new'] = True
-            s['count'] = count_map.get(str(s['bvid']).strip(), 0)
+            s['rank'] = 999 
             combined.append(s)
             
         for _, r in df_top.iterrows():
             s = r.copy()
-            s['is_new'] = False
+            rank_before = str(r.get('rank_before', '-')).strip()
+            if rank_before == '-':
+                s['is_new'] = True
+            else:
+                s['is_new'] = False
+                
             combined.append(s)
 
         return combined, issue_date, idx, ex_date

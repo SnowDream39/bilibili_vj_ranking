@@ -149,7 +149,7 @@ def build_clip_overlay_cmd(
     rank_before_raw = row.get("rank_before", None)
     rank_before_str = str(rank_before_raw).strip() if rank_before_raw is not None else "-"
 
-    if is_new:
+    if is_new and rank > 10:
         rank_text = ffmpeg_escape("NEW!!")
         rank_color = "#FF3333"
         show_rank_change = False
@@ -157,6 +157,7 @@ def build_clip_overlay_cmd(
         prev_rank_text_escaped = ""
     else:
         rank_text = ffmpeg_escape(f"# {rank}")
+        
         if rank == 1:
             rank_color = "#FFD700"
         elif rank == 2:
@@ -168,7 +169,7 @@ def build_clip_overlay_cmd(
 
         show_rank_change = True
 
-        if rank_before_str == "-":
+        if is_new or rank_before_str == "-":
             arrow_text = "▲"
             arrow_color = "#FF3333"
             prev_rank_text = "NEW"
@@ -219,8 +220,8 @@ def build_clip_overlay_cmd(
     ]
 
     if show_rank_change and arrow_text_escaped:
-        rank = int(rank) if rank is not None else 0
-        arrow_x = 310 if rank >= 10 else 240
+        rank_val = int(rank) if (rank is not None and str(rank).isdigit()) else 0
+        arrow_x = 310 if rank_val >= 10 else 240
 
         if prev_rank_text_escaped:
             prev_rank_int = int(prev_rank_text_escaped) if prev_rank_text_escaped.isdigit() else 0
