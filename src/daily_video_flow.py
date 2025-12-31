@@ -105,9 +105,6 @@ class DailyVideoFlow:
         self._cleanup_temp_files(all_clips)
 
     def _create_cover_intro_clip(self, image_path: Path, output_path: Path) -> None:
-        """
-        将竖屏封面转换为 0.5s 的视频片段。
-        """
         filter_complex = (
             "[0:v]scale=1080:1920:force_original_aspect_ratio=increase,"
             "crop=1080:1920,boxblur=40:5[bg];"
@@ -156,17 +153,10 @@ class DailyVideoFlow:
     def _worker(self, task, issue_date):
         idx, r_dict = task
         row = pd.Series(r_dict)
-        
         current_duration = self.clip_duration
-        is_new = bool(row.get("is_new", False))
         rank_val = row.get("rank", 999)
-        
-        try:
-            rank_val = int(rank_val)
-        except:
-            rank_val = 999
             
-        if not is_new and rank_val <= 3:
+        if rank_val <= 3:
             current_duration = 20.0
             
         path = self.clip_flow.generate_clip(row, idx, current_duration, issue_date)
@@ -188,6 +178,7 @@ class DailyVideoFlow:
             issue_date=date_str,
             issue_index=idx
         )
+
     def _generate_achievement_video(self, ex_date, is_date, idx) -> Optional[Path]:
         rows = self.achieve_clipper.load_rows(ex_date, is_date)
 
