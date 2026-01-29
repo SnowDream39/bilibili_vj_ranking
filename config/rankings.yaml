@@ -43,7 +43,7 @@ annual:
 
 # 日刊
 daily:
-  threshold: 1000 # 新曲日增阈值
+  threshold: 2000 # 新曲日增阈值
   input_paths:
     main_data: "数据/{date}.xlsx"
     new_song_data: "新曲数据/新曲{date}.xlsx"

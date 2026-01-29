@@ -10,11 +10,9 @@ __pycache__/
 !utils/
 *json*
 *萌百*
-条目生成.py
 *测试*
 *调试*
 *.yaml
-上传网站.py
 !usecols.json
 !rankings.yaml
 !keywords.json
@@ -24,4 +22,6 @@ __pycache__/
 *.log
 *.jpg
 *.png
+[^/]*.py
+.html
 !requirements.txt

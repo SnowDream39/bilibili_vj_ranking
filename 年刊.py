@@ -6,7 +6,7 @@ async def main():
     """主处理流程：生成年刊"""
     dates = {
         "old_date": "20250101",
-        "new_date": "20251222",
+        "new_date": "20260101",
         "target_date": "2025",  
     }
     processor = RankingProcessor(period='annual')

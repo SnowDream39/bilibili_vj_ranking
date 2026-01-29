@@ -115,17 +115,30 @@ class AITagger:
             try:
                 async with self.semaphore:
                     params = {
-                        "model": self.model_name, "messages": [{"role": "system", "content": self.prompt_template}, {"role": "user", "content": user_content}],
+                        "model": self.model_name,
+                        "messages": [
+                            {"role": "system", "content": self.prompt_template},
+                            {"role": "user", "content": user_content}
+                        ],
                         "temperature": 0.2,
+                        "stream": True,
                     }
                     if self.provider == 'API':
                         params["response_format"] = {"type": "json_object"}
 
                     response = await self.client.chat.completions.create(**params)
+                    
+                    collected_chunks = []
+                    async for chunk in response:
+                        if chunk.choices and chunk.choices[0].delta.content:
+                            content_piece = chunk.choices[0].delta.content
+                            collected_chunks.append(content_piece)
+                    
+                    message_content = "".join(collected_chunks)
+
                 
-                message_content = response.choices[0].message.content
                 if message_content:
-                    logger.info(f"AI Raw Response (Attempt {attempt + 1}):\n---\n{message_content}\n---")
+                    pass
                 else:
                     logger.warning(f"Attempt {attempt + 1}/{self.max_attempts}: AI did not return any message content.")
                     continue
@@ -148,6 +161,7 @@ class AITagger:
  
         logger.error(f"Batch failed after {self.max_attempts} attempts. Last exception: {last_exception}")
         return None
+
     
     def _prepare_dataframe(self) -> Tuple[pd.DataFrame, pd.DataFrame, Dict[int, str]]:
         """读取并准备DataFrame，区分已标注和待处理的数据。"""

@@ -177,16 +177,16 @@
                         newItem[key.trim().toLowerCase()] = item[key];
                     });
                     // 确保 view 是数字类型，如果是字符串 '84,000' 则转为数字
-                    let viewVal = newItem.view || 0;
+                    let viewVal = newItem.point || 0;
                     if (typeof viewVal === 'string') {
                         viewVal = parseFloat(viewVal.replace(/,/g, ''));
                     }
-                    newItem.view = viewVal;
+                    newItem.point = viewVal;
                     return newItem;
                 });
 
                 // 3. 核心逻辑：按播放量(view) 降序排序
-                cleanData.sort((a, b) => b.view - a.view);
+                cleanData.sort((a, b) => b.point - a.point);
 
                 renderGrid(cleanData);
             };
@@ -211,7 +211,7 @@
                 const imgUrl = item.image_url || 'https://via.placeholder.com/300x300?text=No+Img';
                 
                 // 格式化播放量 (例如 84704840 -> 84,704,840)
-                const viewsFormatted = Number(item.view).toLocaleString();
+                const viewsFormatted = Number(item.point).toLocaleString();
 
                 const card = document.createElement('a');
                 card.className = 'card';
@@ -226,7 +226,7 @@
                     </div>
                     <div class="info">
                         <div class="title" title="${title}">${title}</div>
-                        <div class="views">${viewsFormatted} Views</div>
+                        <div class="views">${viewsFormatted} Pts</div>
                     </div>
                 `;
 
@@ -234,39 +234,6 @@
             });
         }
 
-        // 模拟数据 (乱序，测试自动排序功能)
-        function loadDemoData() {
-            const demoData = [
-                { title: "少女A (排第5)", view: 51829545, image_url: "https://i0.hdslb.com/bfs/archive/b839b837766907409c953509b552636284358a98.jpg", bvid: "BV1" },
-                { title: "テトリス (排第1)", view: 84704840, image_url: "https://i0.hdslb.com/bfs/archive/09e931e9f165037d8d21c4302633005f013247c4.jpg", bvid: "BV2" },
-                { title: "BUTCHER VANITY (排第3)", view: 69174289, image_url: "https://i0.hdslb.com/bfs/archive/e3525287311d044f56f183748286a5127264379e.jpg", bvid: "BV3" },
-                { title: "モニタリング (排第2)", view: 83305646, image_url: "https://i0.hdslb.com/bfs/archive/87a5501865394595861502479633e668c12513f4.jpg", bvid: "BV4" },
-                { title: "低播放量测试 (排最后)", view: 100, image_url: "", bvid: "" },
-                { title: "メズマライザー (排第4)", view: 64400509, image_url: "https://i0.hdslb.com/bfs/archive/c444312652199f3088b201a43690680d77477c7d.jpg", bvid: "BV5" }
-            ];
-            // 传入乱序数据，renderGrid 内部会自己排序
-            // 注意：这里需要先把demo数据稍微转换下符合 renderGrid 的预期（已经是数字无需处理）
-            // 为了模拟真实Excel读取，我们在 renderGrid 里做了 sort，所以这里直接传就行
-            // 但是为了演示逻辑一致性，我们在loadDemoData里也手动调一次sort，或者让renderGrid全权处理
-            // 这里我们让 renderGrid 里的 sort 逻辑处理。
-            
-            // 为了演示效果，我们把这个数组稍微处理成 renderGrid 期待的格式(其实就是直接传，因为 renderGrid 会再 sort 一次)
-            // 但是上面的 renderGrid 是在这个事件监听器外面定义的，它接收 sorted data 更好？
-            // 不，我在 reader.onload 里写了 sort。为了 demo 也能 sort，我把 sort 逻辑移到了 renderGrid 内部（不，那样不灵活），
-            // 最好的方式是：renderGrid 负责渲染，排序逻辑在数据源头做。
-            
-            // 为了方便，我在上面的代码块里修改了：reader.onload 里做了一次 sort。
-            // 这里的 demo data 也手动 sort 一下再渲染，或者修改 renderGrid 让它每次都 sort。
-            // 现在的代码里，我把 sort 放到了 renderGrid 之前的 reader.onload 里。
-            // 所以 Demo 数据需要自己排好序或者...
-            
-            // 修正：为了让你省事，我把 sort 逻辑加到了 renderGrid 函数的最开头。
-            // 这样无论是 excel 还是 demo，进函数前都不用管顺序。
-            
-            /* 修改 renderGrid 增加排序功能 */
-            const sortedDemo = [...demoData].sort((a, b) => b.view - a.view);
-            renderGrid(sortedDemo);
-        }
     </script>
 </body>
 </html>

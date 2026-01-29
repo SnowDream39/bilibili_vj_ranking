@@ -347,7 +347,7 @@ class Cover:
         
         # 标题
         draw_title_main = (
-            f"drawtext=fontfile='{font_path}':text='虚拟歌手日刊':"
+            f"drawtext=fontfile='{font_path}':text='日刊虚拟歌手':"
             f"fontsize=80:fontcolor=white@0.95:"
             f"x=800:y=50:shadowx=3:shadowy=3:shadowcolor=black@0.3"
         )
@@ -473,7 +473,7 @@ class Cover:
         filters.append(f"[{current_bg}][hero_shadow]overlay=x={hero_x}+30:y={hero_y}+40[bg_w_shadow]")
         filters.append(f"[bg_w_shadow][h_src]overlay=x={hero_x}:y={hero_y}[combined_img]")
         
-        text1 = "虚拟歌手日刊"
+        text1 = "日刊虚拟歌手"
         text2 = "外语排行榜"
         fill_color = "white@0.95"
         border_w = 22

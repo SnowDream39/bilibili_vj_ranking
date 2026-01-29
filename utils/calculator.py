@@ -32,10 +32,7 @@ def calculate_scores(view: int, favorite: int, coin: int, like: int, danmaku: in
     fixA = 0 if coin <= 0 else (1 if copyright == 1 else ceil(max(1, (view + 20 * favorite + 40 * coin + 10 * like) / (200 * coin)) * 100) / 100)  
     
     # 计算修正系数B(云视听小电视等高播放收藏、低硬币点赞抑制系数)
-    if ranking_type in ('daily', 'weekly', 'monthly'):
-        fixB = 0 if view + 20 * favorite <= 0 else ceil(min(1, 3 * max(0, (20 * coin + 10 * like)) / (view + 20 * favorite)) * 100) / 100
-    elif ranking_type in ('annual', 'special'):
-        fixB = 0 if view + 20 * favorite <= 0 else ceil(min(1, 3 * max(0, (20 * coin * fixA + 10 * like)) / (view + 20 * favorite)) * 100) / 100
+    fixB = 0 if view + 20 * favorite <= 0 else ceil(min(1, 3 * max(0, (20 * coin * fixA + 10 * like)) / (view + 20 * favorite)) * 100) / 100
 
     # 计算修正系数C(梗曲等高点赞、低收藏抑制系数)
     fixC = 0 if like + favorite <= 0 else ceil(min(1, (like + favorite + 20 * coin * fixA)/(2 * like + 2 * favorite)) * 100) / 100
@@ -244,7 +241,7 @@ def calculate(new: pd.Series, old: Optional[pd.Series], ranking_type: str):
         list: 包含差值、评分系数和总分的计算结果列表。
     """
     diff = [calculate_differences(new, ranking_type, old)[col] for col in ['view', 'favorite', 'coin', 'like', 'danmaku', 'reply', 'share']]
-    scores = calculate_scores(diff[0], diff[1], diff[2], diff[3], diff[4], diff[5], diff[6], new['copyright'], ranking_type)
+    scores = calculate_scores_v2(diff[0], diff[1], diff[2], diff[3], diff[4], diff[5], diff[6], new['copyright'], ranking_type)
     point = round(scores[8] * scores[9] * calculate_points(diff, scores))
     
     return diff + list(scores) + [point]
