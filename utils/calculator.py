@@ -81,10 +81,7 @@ def calculate_scores_v2(view: int, favorite: int, coin: int, like: int, danmaku:
     fixA = 0 if coin <= 0 else (1 if copyright == 1 else ceil(max(1, (view + 20 * favorite + 40 * coin + 10 * like) / (200 * coin)) * 100) / 100)  
     
     # 计算修正系数B(云视听小电视等高播放收藏、低硬币点赞抑制系数)
-    if ranking_type in ('daily', 'weekly', 'monthly'):
-        fixB = 0 if view + 20 * favorite <= 0 else ceil(min(1, 3 * max(0, (20 * coin + 10 * like)) / (view + 20 * favorite)) * 100) / 100
-    elif ranking_type in ('annual', 'special'):
-        fixB = 0 if view + 20 * favorite <= 0 else ceil(min(1, 3 * max(0, (20 * coin * fixA + 10 * like)) / (view + 20 * favorite)) * 100) / 100
+    fixB = 0 if view + 20 * favorite <= 0 else ceil(min(1, 3 * max(0, (20 * coin * fixA + 10 * like)) / (view + 20 * favorite)) * 100) / 100
 
     # 计算修正系数C(梗曲等高点赞、低收藏抑制系数)
     fixC = 0 if like + favorite <= 0 else ceil(min(1, (like + favorite + 20 * coin * fixA)/(2 * like + 2 * favorite)) * 100) / 100
@@ -109,7 +106,7 @@ def calculate_scores_v2(view: int, favorite: int, coin: int, like: int, danmaku:
         danmakuR = 0 if danmaku <= 0 else max(ceil(min(100, max(0, (20 * max(0, reply) + favorite + like)) / max(1, danmaku, danmaku + reply)) * 100) / 100, 0)
         replyR = 0 if reply <= 0 else max(ceil(min((400 * reply + 10 * like + 10 * favorite) / (200 * reply + view) * 20, 40) * 100) / 100, 0)
         shareR = 0 if share <= 0 else max(ceil(min((2 * fixA * coin + favorite) / (5 * share + like) * 10, 10) * 100) / 100, 0)
-    if ranking_type in ('annual'):
+    if ranking_type in ('annual', 'special'):
         viewR = viewR / 2 + 0.5
         favoriteR = favoriteR / 2 + 10
         coinR = coinR / 2 + 20
